@@ -99,6 +99,11 @@ class FTC_Gateway_Getnet extends WC_Payment_Gateway {
                 'type'        => 'password',
                 'description' => __( 'Opcional: sobrescribe el Webhook Secret global.', 'ferk-topten-connector' ),
             ),
+            'callback_url' => array(
+                'title'       => __( 'Callback URL (opcional)', 'ferk-topten-connector' ),
+                'type'        => 'text',
+                'description' => __( 'Si la API lo soporta, se enviará esta URL para recibir callbacks del pago.', 'ferk-topten-connector' ),
+            ),
             'allowed_country' => array(
                 'title'       => __( 'Permitir solo país', 'ferk-topten-connector' ),
                 'type'        => 'text',
@@ -323,6 +328,14 @@ class FTC_Gateway_Getnet extends WC_Payment_Gateway {
             'JsonPedido'   => $json_pedido_str,
             'UrlRedirect'  => $return_url,
         );
+
+        $callback_url = esc_url_raw( (string) $this->get_option( 'callback_url', '' ) );
+        if ( $callback_url ) {
+            $callback_param = apply_filters( 'ftc_topten_payment_callback_param', 'UrlNotification', $order, $payload );
+            if ( is_string( $callback_param ) && '' !== $callback_param ) {
+                $payload[ $callback_param ] = $callback_url;
+            }
+        }
 
         try {
             $client = $plugin->client( $this->get_gateway_config() );

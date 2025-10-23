@@ -11,7 +11,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 require_once FTC_PLUGIN_DIR . 'includes/helpers/class-ftc-utils.php';
 require_once FTC_PLUGIN_DIR . 'includes/helpers/class-ftc-logger.php';
-require_once FTC_PLUGIN_DIR . 'includes/helpers/class-ftc-validator.php';
 require_once FTC_PLUGIN_DIR . 'includes/order/class-ftc-order-status.php';
 
 /**
@@ -93,92 +92,188 @@ class FTC_Webhooks {
     }
 
     /**
-     * Handle webhook.
+     * Handle GetNet webhook.
      *
      * @param WP_REST_Request $request Request.
      *
      * @return WP_REST_Response|WP_Error
      */
     public function handle_getnet_webhook( WP_REST_Request $request ) {
+        $raw_body  = $request->get_body();
+        $signature = $request->get_header( 'X-Topten-Signature' );
+        $timestamp = $request->get_header( 'X-Topten-Timestamp' );
+
+        if ( '' === $raw_body ) {
+            return new WP_REST_Response( array( 'ok' => false, 'reason' => 'empty_body' ), 400 );
+        }
+
         $defaults = class_exists( 'FTC_Settings' ) ? FTC_Settings::get_defaults() : array();
         $settings = get_option( FTC_Utils::option_name(), $defaults );
-        $secret   = FTC_Utils::array_get( $settings, 'credentials.webhook_secret', '' );
-        $payload  = $request->get_body();
-        $signature = $request->get_header( 'X-Topten-Signature' );
+        $secret   = (string) FTC_Utils::array_get( $settings, 'credentials.webhook_secret', '' );
 
-        if ( ! FTC_Validator::validate_signature( $payload, $signature, $secret ) ) {
-            FTC_Logger::instance()->warn( 'webhook', __( 'Firma inválida en webhook.', 'ferk-topten-connector' ) );
+        if ( '' !== $secret ) {
+            $validation = $this->validate_signature( $raw_body, (string) $signature, $secret );
+            if ( is_wp_error( $validation ) ) {
+                $status_code = (int) $validation->get_error_data( 'status' );
+                if ( $status_code <= 0 ) {
+                    $status_code = 401;
+                }
 
-            return new WP_Error( 'ftc_invalid_signature', __( 'Firma inválida.', 'ferk-topten-connector' ), array( 'status' => 401 ) );
+                FTC_Logger::instance()->warn( 'webhook', 'Webhook rejected: ' . $validation->get_error_code() );
+
+                return new WP_REST_Response(
+                    array(
+                        'ok'     => false,
+                        'reason' => $validation->get_error_code(),
+                    ),
+                    $status_code
+                );
+            }
+        } else {
+            FTC_Logger::instance()->warn(
+                'webhook',
+                'Webhook secret missing; accepting request in dev mode.',
+                array( 'signature_header' => ( $signature ? 'present' : 'absent' ) )
+            );
         }
 
-        $data = json_decode( $payload, true );
-        if ( empty( $data['data']['payment_id'] ) ) {
-            return new WP_Error( 'ftc_invalid_payload', __( 'Payload incompleto.', 'ferk-topten-connector' ), array( 'status' => 400 ) );
+        if ( ! $this->validate_timestamp_window( $timestamp ) ) {
+            FTC_Logger::instance()->warn( 'webhook', 'Webhook timestamp outside allowed window.' );
+
+            return new WP_REST_Response( array( 'ok' => false, 'reason' => 'invalid_timestamp' ), 401 );
         }
 
-        $payment_id = $data['data']['payment_id'];
-        $status     = isset( $data['data']['status'] ) ? sanitize_key( $data['data']['status'] ) : '';
+        $decoded = $this->parse_json_payload( $raw_body );
+        if ( ! is_array( $decoded ) ) {
+            FTC_Logger::instance()->warn( 'webhook', 'Webhook payload is not a valid JSON object.' );
 
-        if ( ! FTC_Validator::is_valid_status( $status ) ) {
-            $status = 'pending';
+            return new WP_REST_Response( array( 'ok' => false, 'reason' => 'invalid_json' ), 400 );
         }
 
-        $order = $this->find_order_by_payment_id( $payment_id );
+        $identifiers = $this->extract_identifiers( $decoded );
+        if ( empty( $identifiers['status'] ) ) {
+            $identifiers['status'] = 'pending';
+        }
+
+        $order = $this->find_order_by_identifiers( $identifiers );
+
         if ( ! $order ) {
-            FTC_Logger::instance()->error( 'webhook', __( 'Pedido no encontrado para el pago.', 'ferk-topten-connector' ), array( 'payment_id' => $payment_id ) );
+            FTC_Logger::instance()->warn(
+                'webhook',
+                'Order not found for webhook identifiers.',
+                array(
+                    'token'      => isset( $identifiers['token'] ) ? $this->mask_identifier( $identifiers['token'] ) : null,
+                    'idadquiria' => isset( $identifiers['idadquiria'] ) ? $identifiers['idadquiria'] : null,
+                    'cart_id'    => isset( $identifiers['cart_id'] ) ? $identifiers['cart_id'] : null,
+                )
+            );
 
-            return new WP_Error( 'ftc_order_not_found', __( 'Pedido no encontrado.', 'ferk-topten-connector' ), array( 'status' => 404 ) );
+            return rest_ensure_response(
+                array(
+                    'received'     => true,
+                    'order_found'  => false,
+                )
+            );
         }
 
-        $new_status = FTC_Order_Status::map_topten_status_to_wc( $status, $order );
+        $incoming_status = strtolower( trim( (string) $identifiers['status'] ) );
+        $last_status     = strtolower( trim( (string) $order->get_meta( '_ftc_topten_last_status', true ) ) );
 
-        $this->update_order_status( $order, $new_status, $payment_id, $status, $data );
+        if ( '' !== $incoming_status && $incoming_status === $last_status ) {
+            FTC_Logger::instance()->info(
+                'webhook',
+                'Duplicate webhook status ignored.',
+                array(
+                    'order_id' => $order->get_id(),
+                    'status'   => $incoming_status,
+                )
+            );
 
-        return rest_ensure_response( array( 'received' => true ) );
+            return rest_ensure_response(
+                array(
+                    'received'     => true,
+                    'order_found'  => true,
+                    'duplicate'    => true,
+                )
+            );
+        }
+
+        $context = array(
+            'transaction_id' => isset( $identifiers['token'] ) && '' !== $identifiers['token']
+                ? (string) $identifiers['token']
+                : ( isset( $identifiers['idadquiria'] ) ? (string) $identifiers['idadquiria'] : '' ),
+            'amount'          => isset( $identifiers['amount'] ) ? $identifiers['amount'] : null,
+        );
+
+        try {
+            FTC_Order_Status::apply_webhook_status( $order, (string) $identifiers['status'], $context );
+        } catch ( \Throwable $e ) {
+            FTC_Logger::instance()->error(
+                'webhook',
+                'Error applying webhook status: ' . $e->getMessage(),
+                array( 'order_id' => $order->get_id() )
+            );
+
+            return new WP_REST_Response( array( 'ok' => false, 'reason' => 'processing_error' ), 500 );
+        }
+
+        FTC_Logger::instance()->info(
+            'webhook',
+            'Webhook processed successfully.',
+            array(
+                'order_id' => $order->get_id(),
+                'status'   => $incoming_status,
+            )
+        );
+
+        return rest_ensure_response(
+            array(
+                'received'     => true,
+                'order_found'  => true,
+            )
+        );
     }
 
     /**
-     * Handle return URL.
+     * Handle return URL from GetNet.
      *
      * @param WP_REST_Request $request Request.
      *
-     * @return WP_REST_Response
+     * @return WP_REST_Response|void
      */
     public function handle_getnet_return( WP_REST_Request $request ) {
         $order_id = absint( $request->get_param( 'order_id' ) );
         $order_key = sanitize_text_field( (string) $request->get_param( 'key' ) );
-        $payment_id = sanitize_text_field( (string) $request->get_param( 'payment_id' ) );
-
-        $checkout_url = function_exists( 'wc_get_checkout_url' ) ? wc_get_checkout_url() : home_url();
 
         if ( empty( $order_id ) || empty( $order_key ) ) {
-            wp_safe_redirect( $checkout_url );
-            exit;
+            return new WP_REST_Response( array( 'ok' => false, 'reason' => 'missing_params' ), 400 );
         }
 
         $order = wc_get_order( $order_id );
-        if ( ! $order || $order->get_order_key() !== $order_key ) {
-            wp_safe_redirect( $checkout_url );
-            exit;
+        if ( ! $order ) {
+            return new WP_REST_Response( array( 'ok' => false, 'reason' => 'order_not_found' ), 404 );
         }
 
-        if ( ! empty( $payment_id ) ) {
-            try {
-                $client  = FTC_Plugin::instance()->get_client_from_order( $order );
-                $payment = $client->get_payment( $payment_id );
-                if ( ! empty( $payment['status'] ) ) {
-                    $new_status = FTC_Order_Status::map_topten_status_to_wc( $payment['status'], $order );
-                    $this->update_order_status( $order, $new_status, $payment_id, $payment['status'], $payment );
-                }
-            } catch ( Exception $e ) {
-                FTC_Logger::instance()->warn( 'return', $e->getMessage(), array( 'order_id' => $order_id ) );
-            }
+        if ( $order->get_order_key() !== $order_key ) {
+            return new WP_REST_Response( array( 'ok' => false, 'reason' => 'forbidden' ), 403 );
         }
 
-        $redirect = $order->get_checkout_order_received_url();
+        $token      = sanitize_text_field( (string) $request->get_param( 'token' ) );
+        $idadquiria = sanitize_text_field( (string) $request->get_param( 'idadquiria' ) );
 
-        wp_safe_redirect( $redirect );
+        if ( $token || $idadquiria ) {
+            FTC_Logger::instance()->info(
+                'return',
+                'Return handler accessed.',
+                array(
+                    'order_id'  => $order->get_id(),
+                    'token'     => $token ? $this->mask_identifier( $token ) : null,
+                    'idadquiria'=> $idadquiria ? $idadquiria : null,
+                )
+            );
+        }
+
+        wp_safe_redirect( $order->get_checkout_order_received_url() );
         exit;
     }
 
@@ -191,7 +286,9 @@ class FTC_Webhooks {
      */
     public function handle_admin_test_user( WP_REST_Request $request ) {
         if ( ! current_user_can( 'manage_woocommerce' ) ) {
-            return new WP_Error( 'ftc_forbidden', __( 'No tienes permisos para esta acción.', 'ferk-topten-connector' ), array( 'status' => 403 ) );
+            return new WP_Error( 'ftc_forbidden', __( 'No tienes permisos para esta acción.', 'ferk-topten-connector' ), array(
+                'status' => 403,
+            ) );
         }
 
         $timestamp = gmdate( 'YmdHis' );
@@ -230,58 +327,239 @@ class FTC_Webhooks {
     }
 
     /**
-     * Update order status and add note.
+     * Parse JSON payload with basic sanitisation.
      *
-     * @param WC_Order $order      Order object.
-     * @param string   $status     Target status.
-     * @param string   $payment_id Payment ID.
-     * @param string   $raw_status Raw status.
-     * @param array    $payload    Payload.
+     * @param string $raw Raw body.
+     *
+     * @return array|null
      */
-    protected function update_order_status( $order, $status, $payment_id, $raw_status, $payload ) {
-        $note = sprintf(
-            /* translators: 1: payment id, 2: status */
-            __( 'Actualización TopTen. Pago %1$s con estado %2$s.', 'ferk-topten-connector' ),
-            $payment_id,
-            $raw_status
-        );
-
-        if ( 'completed' === $status || 'processing' === $status ) {
-            $order->payment_complete( $payment_id );
-        } elseif ( 'on-hold' === $status ) {
-            $order->update_status( 'on-hold', $note );
-        } elseif ( in_array( $status, array( 'failed', 'cancelled' ), true ) ) {
-            $order->update_status( $status, $note );
-        } else {
-            $order->add_order_note( $note );
+    protected function parse_json_payload( $raw ) {
+        $decoded = json_decode( $raw, true );
+        if ( JSON_ERROR_NONE === json_last_error() ) {
+            return $decoded;
         }
 
-        $order->update_meta_data( '_ftc_topten_payment_status', sanitize_text_field( $raw_status ) );
-        $order->save();
+        $clean = wp_check_invalid_utf8( $raw, true );
+        if ( $clean !== $raw ) {
+            $decoded = json_decode( $clean, true );
+            if ( JSON_ERROR_NONE === json_last_error() ) {
+                return $decoded;
+            }
+        }
 
-        FTC_Logger::instance()->info( 'webhook', __( 'Pedido actualizado desde webhook.', 'ferk-topten-connector' ), array(
-            'order_id'   => $order->get_id(),
-            'payment_id' => $payment_id,
-            'status'     => $raw_status,
-            'payload'    => $payload,
-        ) );
+        $stripped = preg_replace( '/[\x00-\x1F\x7F]/u', '', $raw );
+        if ( is_string( $stripped ) && $stripped !== $raw ) {
+            $decoded = json_decode( $stripped, true );
+            if ( JSON_ERROR_NONE === json_last_error() ) {
+                return $decoded;
+            }
+        }
+
+        return null;
     }
 
     /**
-     * Find order by payment id.
+     * Extract identifiers from decoded payload.
      *
-     * @param string $payment_id Payment ID.
+     * @param array $decoded Decoded payload.
      *
-     * @return WC_Order|false
+     * @return array
      */
-    protected function find_order_by_payment_id( $payment_id ) {
-        global $wpdb;
-        $order_id = $wpdb->get_var( $wpdb->prepare( "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value = %s LIMIT 1", '_ftc_topten_payment_id', $payment_id ) );
+    protected function extract_identifiers( array $decoded ) {
+        $identifiers = array();
 
-        if ( $order_id ) {
-            return wc_get_order( $order_id );
+        $token = $this->find_value( $decoded, array( 'token', 'placetopaytoken', 'paymenttoken', 'topten_token' ) );
+        if ( null !== $token && '' !== $token ) {
+            $identifiers['token'] = (string) $token;
+        }
+
+        $idadquiria = $this->find_value( $decoded, array( 'idadquiria', 'id_adquiria', 'idacquirer' ) );
+        if ( null !== $idadquiria && '' !== $idadquiria ) {
+            $identifiers['idadquiria'] = is_numeric( $idadquiria ) ? (int) $idadquiria : (string) $idadquiria;
+        }
+
+        $cart_id = $this->find_value( $decoded, array( 'carr_id', 'cartid', 'cart_id' ) );
+        if ( null !== $cart_id && '' !== $cart_id ) {
+            $identifiers['cart_id'] = is_numeric( $cart_id ) ? (int) $cart_id : (string) $cart_id;
+        }
+
+        $status = $this->find_value( $decoded, array( 'status', 'estado', 'state', 'result', 'statuscode', 'status_code' ) );
+        if ( null !== $status && '' !== $status ) {
+            $identifiers['status'] = (string) $status;
+        }
+
+        $amount = $this->find_value( $decoded, array( 'amount', 'valor', 'total', 'amountvalue' ) );
+        if ( null !== $amount && '' !== $amount ) {
+            $identifiers['amount'] = is_numeric( $amount ) ? (float) $amount : (string) $amount;
+        }
+
+        return $identifiers;
+    }
+
+    /**
+     * Find value by trying multiple keys recursively.
+     *
+     * @param array $payload Payload.
+     * @param array $keys    Keys to search.
+     *
+     * @return mixed|null
+     */
+    protected function find_value( $payload, array $keys ) {
+        if ( ! is_array( $payload ) ) {
+            return null;
+        }
+
+        $keys = array_map( 'strtolower', $keys );
+        foreach ( $payload as $k => $value ) {
+            if ( is_string( $k ) && in_array( strtolower( $k ), $keys, true ) ) {
+                if ( is_scalar( $value ) ) {
+                    return $value;
+                }
+            }
+
+            if ( is_array( $value ) ) {
+                $found = $this->find_value( $value, $keys );
+                if ( null !== $found ) {
+                    return $found;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Find order using webhook identifiers.
+     *
+     * @param array $identifiers Identifiers.
+     *
+     * @return \WC_Order|false
+     */
+    protected function find_order_by_identifiers( array $identifiers ) {
+        if ( ! empty( $identifiers['token'] ) ) {
+            $order = $this->find_order_by_meta( '_ftc_topten_payment_token', (string) $identifiers['token'] );
+            if ( $order ) {
+                return $order;
+            }
+        }
+
+        if ( isset( $identifiers['idadquiria'] ) ) {
+            $value = (string) $identifiers['idadquiria'];
+            $order = $this->find_order_by_meta( '_ftc_topten_payment_idadquiria', $value );
+            if ( $order ) {
+                return $order;
+            }
+        }
+
+        if ( isset( $identifiers['cart_id'] ) ) {
+            $value = (string) $identifiers['cart_id'];
+            $order = $this->find_order_by_meta( '_ftc_topten_cart_id', $value );
+            if ( $order ) {
+                return $order;
+            }
         }
 
         return false;
     }
+
+    /**
+     * Helper to query order by meta key/value.
+     *
+     * @param string $meta_key   Meta key.
+     * @param string $meta_value Meta value.
+     *
+     * @return \WC_Order|false
+     */
+    protected function find_order_by_meta( $meta_key, $meta_value ) {
+        if ( '' === $meta_value ) {
+            return false;
+        }
+
+        $orders = wc_get_orders(
+            array(
+                'type'      => 'shop_order',
+                'limit'     => 1,
+                'orderby'   => 'date',
+                'order'     => 'DESC',
+                'meta_key'  => $meta_key,
+                'meta_value'=> $meta_value,
+                'return'    => 'objects',
+                'status'    => array_keys( wc_get_order_statuses() ),
+            )
+        );
+
+        if ( ! empty( $orders ) && $orders[0] instanceof \WC_Order ) {
+            return $orders[0];
+        }
+
+        return false;
+    }
+
+    /**
+     * Validate webhook signature.
+     *
+     * @param string $raw_body  Raw request body.
+     * @param string $signature Signature header.
+     * @param string $secret    Secret key.
+     *
+     * @return true|WP_Error
+     */
+    protected function validate_signature( $raw_body, $signature, $secret ) {
+        if ( '' === $signature ) {
+            return new WP_Error( 'missing_signature', 'Signature header missing.', array( 'status' => 401 ) );
+        }
+
+        $computed = base64_encode( hash_hmac( 'sha256', $raw_body, $secret, true ) );
+        if ( ! hash_equals( $computed, $signature ) ) {
+            return new WP_Error( 'invalid_signature', 'Invalid webhook signature.', array( 'status' => 401 ) );
+        }
+
+        return true;
+    }
+
+    /**
+     * Validate optional timestamp header.
+     *
+     * @param string $timestamp Timestamp header.
+     *
+     * @return bool
+     */
+    protected function validate_timestamp_window( $timestamp ) {
+        if ( empty( $timestamp ) ) {
+            return true;
+        }
+
+        if ( is_numeric( $timestamp ) ) {
+            $ts = (int) $timestamp;
+        } else {
+            $ts = strtotime( (string) $timestamp );
+        }
+
+        if ( ! $ts ) {
+            return false;
+        }
+
+        $now = time();
+
+        return abs( $now - $ts ) <= 600;
+    }
+
+    /**
+     * Mask identifier values before logging.
+     *
+     * @param string $value Identifier value.
+     *
+     * @return string
+     */
+    protected function mask_identifier( $value ) {
+        $value = (string) $value;
+        $length = strlen( $value );
+
+        if ( $length <= 6 ) {
+            return $value;
+        }
+
+        return substr( $value, 0, 3 ) . '...' . substr( $value, -3 );
+    }
 }
+

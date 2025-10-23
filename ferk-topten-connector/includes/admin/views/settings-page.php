@@ -103,6 +103,39 @@ if ( ! isset( $tabs[ $current_tab ] ) ) {
                 <p><?php esc_html_e( 'Pronto podrás gestionar opciones de sincronización adicionales.', 'ferk-topten-connector' ); ?></p>
             <?php elseif ( 'tools' === $current_tab ) : ?>
                 <p><?php esc_html_e( 'Utiliza estas herramientas para diagnosticar el conector.', 'ferk-topten-connector' ); ?></p>
+                <?php
+                $webhook_url = rest_url( 'ftc/v1/getnet/webhook' );
+                $return_url  = rest_url( 'ftc/v1/getnet/return' );
+                ?>
+                <h3><?php esc_html_e( 'URLs de integración', 'ferk-topten-connector' ); ?></h3>
+                <table class="form-table" role="presentation">
+                    <tbody>
+                        <tr>
+                            <th scope="row"><?php esc_html_e( 'Webhook URL', 'ferk-topten-connector' ); ?></th>
+                            <td>
+                                <div class="ftc-copy-field">
+                                    <input type="text" id="ftc-webhook-url" class="regular-text code" readonly value="<?php echo esc_attr( $webhook_url ); ?>" />
+                                    <button type="button" class="button button-secondary ftc-copy-button" data-copy-target="#ftc-webhook-url">
+                                        <?php esc_html_e( 'Copiar', 'ferk-topten-connector' ); ?>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><?php esc_html_e( 'Return URL', 'ferk-topten-connector' ); ?></th>
+                            <td>
+                                <div class="ftc-copy-field">
+                                    <input type="text" id="ftc-return-url" class="regular-text code" readonly value="<?php echo esc_attr( $return_url ); ?>" />
+                                    <button type="button" class="button button-secondary ftc-copy-button" data-copy-target="#ftc-return-url">
+                                        <?php esc_html_e( 'Copiar', 'ferk-topten-connector' ); ?>
+                                    </button>
+                                </div>
+                                <p class="description"><?php esc_html_e( 'Configura esta URL como webhook en TopTen / PlaceToPay para recibir confirmaciones de pago.', 'ferk-topten-connector' ); ?></p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p class="description"><?php esc_html_e( 'Si la API permite callbacks por request, puedes habilitarlo desde los ajustes del gateway.', 'ferk-topten-connector' ); ?></p>
                 <p>
                     <button type="button" class="button button-secondary" id="ftc-test-connection">
                         <?php esc_html_e( 'Testear conexión', 'ferk-topten-connector' ); ?>

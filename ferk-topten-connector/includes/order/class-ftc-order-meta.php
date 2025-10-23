@@ -21,6 +21,7 @@ class FTC_Order_Meta {
         add_filter( 'manage_edit-shop_order_columns', array( $this, 'add_order_columns' ) );
         add_action( 'manage_shop_order_posts_custom_column', array( $this, 'render_order_columns' ), 10, 2 );
         add_action( 'admin_post_ftc_retry_payment', array( $this, 'handle_retry_payment' ) );
+        add_action( 'admin_post_ftc_mark_paid', array( $this, 'handle_mark_paid' ) );
         add_action( 'admin_notices', array( $this, 'maybe_show_missing_products_notice' ) );
     }
 
@@ -57,12 +58,19 @@ class FTC_Order_Meta {
         $payment_token = $order->get_meta( '_ftc_topten_payment_token' );
         $expiration    = $order->get_meta( '_ftc_topten_payment_expiration_utc' );
         $id_adquiria   = $order->get_meta( '_ftc_topten_payment_idadquiria' );
+        $last_status   = $order->get_meta( '_ftc_topten_last_status' );
+        $last_status_at = $order->get_meta( '_ftc_topten_last_status_at' );
 
         $expiration_display = '';
         if ( ! empty( $expiration ) && is_numeric( $expiration ) ) {
             $expiration_display = gmdate( 'Y-m-d H:i:s', (int) $expiration ) . ' UTC';
         } elseif ( ! empty( $expiration ) ) {
             $expiration_display = (string) $expiration;
+        }
+
+        $last_status_at_display = '';
+        if ( ! empty( $last_status_at ) && is_numeric( $last_status_at ) ) {
+            $last_status_at_display = wp_date( 'Y-m-d H:i:s', (int) $last_status_at );
         }
 
         ?>
@@ -80,6 +88,14 @@ class FTC_Order_Meta {
         ?>
         <p><strong><?php esc_html_e( 'Pago TopTen:', 'ferk-topten-connector' ); ?></strong> <?php echo esc_html( $payment_id ? $payment_id : '—' ); ?></p>
         <p><strong><?php esc_html_e( 'Estado pago TopTen:', 'ferk-topten-connector' ); ?></strong> <?php echo esc_html( $status ? $status : '—' ); ?></p>
+        <?php if ( $last_status || $last_status_at_display ) : ?>
+            <p><strong><?php esc_html_e( 'Último estado recibido por webhook:', 'ferk-topten-connector' ); ?></strong><br />
+                <?php echo esc_html( $last_status ? $last_status : '—' ); ?>
+                <?php if ( $last_status_at_display ) : ?>
+                    <br /><small><?php echo esc_html( sprintf( /* translators: %s: datetime string */ __( 'Actualizado: %s', 'ferk-topten-connector' ), $last_status_at_display ) ); ?></small>
+                <?php endif; ?>
+            </p>
+        <?php endif; ?>
         <?php if ( $payment_token ) : ?>
             <p><strong><?php esc_html_e( 'TopTen Payment Token:', 'ferk-topten-connector' ); ?></strong> <?php echo esc_html( $payment_token ); ?></p>
         <?php endif; ?>
@@ -98,11 +114,23 @@ class FTC_Order_Meta {
         <p>
             <button class="button" name="ftc-retry-payment" value="1" form="ftc-retry-payment-form"><?php esc_html_e( 'Reintentar crear pago', 'ferk-topten-connector' ); ?></button>
         </p>
+        <?php if ( current_user_can( 'manage_woocommerce' ) ) : ?>
+            <p>
+                <button class="button" name="ftc-mark-paid" value="1" form="ftc-mark-paid-form"><?php esc_html_e( 'Marcar como pagado (manual)', 'ferk-topten-connector' ); ?></button>
+            </p>
+        <?php endif; ?>
         <form id="ftc-retry-payment-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
             <input type="hidden" name="action" value="ftc_retry_payment" />
             <input type="hidden" name="order_id" value="<?php echo esc_attr( $order->get_id() ); ?>" />
             <?php wp_nonce_field( 'ftc_retry_payment', 'ftc_retry_nonce' ); ?>
         </form>
+        <?php if ( current_user_can( 'manage_woocommerce' ) ) : ?>
+            <form id="ftc-mark-paid-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                <input type="hidden" name="action" value="ftc_mark_paid" />
+                <input type="hidden" name="order_id" value="<?php echo esc_attr( $order->get_id() ); ?>" />
+                <?php wp_nonce_field( 'ftc_mark_paid', 'ftc_mark_paid_nonce' ); ?>
+            </form>
+        <?php endif; ?>
         <?php
     }
 
@@ -183,6 +211,50 @@ class FTC_Order_Meta {
                 'ftc_message' => rawurlencode( $e->getMessage() ),
             ), $redirect );
         }
+
+        wp_safe_redirect( $redirect );
+        exit;
+    }
+
+    /**
+     * Handle manual mark as paid action.
+     */
+    public function handle_mark_paid() {
+        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+            wp_die( esc_html__( 'No tienes permisos.', 'ferk-topten-connector' ) );
+        }
+
+        $order_id = isset( $_POST['order_id'] ) ? absint( wp_unslash( $_POST['order_id'] ) ) : 0;
+        $nonce    = isset( $_POST['ftc_mark_paid_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['ftc_mark_paid_nonce'] ) ) : '';
+
+        if ( ! wp_verify_nonce( $nonce, 'ftc_mark_paid' ) ) {
+            wp_die( esc_html__( 'Nonce inválido.', 'ferk-topten-connector' ) );
+        }
+
+        $order = wc_get_order( $order_id );
+        if ( ! $order ) {
+            wp_safe_redirect( wp_get_referer() ? wp_get_referer() : admin_url( 'edit.php?post_type=shop_order' ) );
+            exit;
+        }
+
+        $transaction_id = (string) ( $order->get_meta( '_ftc_topten_payment_token' ) ?: '' );
+        if ( '' === $transaction_id ) {
+            $transaction_id = (string) ( $order->get_meta( '_ftc_topten_payment_idadquiria' ) ?: '' );
+        }
+
+        if ( '' === $transaction_id ) {
+            $transaction_id = 'manual-' . time();
+        }
+
+        $order->payment_complete( $transaction_id );
+        $order->add_order_note( __( 'Pago marcado manualmente desde la administración de TopTen.', 'ferk-topten-connector' ) );
+        $order->update_meta_data( '_ftc_topten_payment_status', 'manual-paid' );
+        $order->update_meta_data( '_ftc_topten_last_status', 'manual-paid' );
+        $order->update_meta_data( '_ftc_topten_last_status_at', time() );
+        $order->save();
+
+        $redirect = wp_get_referer() ? wp_get_referer() : admin_url( 'post.php?post=' . $order_id . '&action=edit' );
+        $redirect = add_query_arg( 'ftc_manual_paid', 'success', $redirect );
 
         wp_safe_redirect( $redirect );
         exit;

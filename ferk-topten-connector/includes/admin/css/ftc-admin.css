@@ -9,3 +9,14 @@
 .ftc-settings .ftc-test-message.ftc-error {
     color: #d63638;
 }
+
+.ftc-settings .ftc-copy-field {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    max-width: 600px;
+}
+
+.ftc-settings .ftc-copy-field input {
+    flex: 1;
+}
