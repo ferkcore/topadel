@@ -77,7 +77,7 @@ class FTC_Products_Importer {
         $rows      = array();
         $truncated = false;
 
-        $entity_id = (int) get_option( 'ftc_auth_enti_id', FTC_Utils::FTCTOPTEN_ENTITY_ID );
+        $entity_id = (int) apply_filters( 'ftc_topten_entity_id', FTC_Utils::FTCTOPTEN_ENTITY_ID );
         if ( $entity_id <= 0 ) {
             $entity_id = FTC_Utils::FTCTOPTEN_ENTITY_ID;
         }
@@ -322,7 +322,7 @@ class FTC_Products_Importer {
             $payload['PalabraClave'] = $keyword;
         }
 
-        $response = $this->get_client()->get_products_detail( $payload, array( 'use_token' => true ) );
+        $response = $this->get_client()->get_products_detail( $payload );
 
         $products = isset( $response['Productos'] ) && is_array( $response['Productos'] ) ? $response['Productos'] : array();
 

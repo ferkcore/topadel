@@ -182,9 +182,6 @@ class FTC_Plugin {
         add_action( 'admin_init', array( $this, 'maybe_seed_settings' ) );
         add_action( 'admin_notices', array( $this, 'maybe_show_retry_notice' ) );
         add_action( 'update_option_' . FTC_Utils::option_name(), array( $this, 'refresh_settings_cache' ), 10, 2 );
-        add_filter( 'cron_schedules', array( $this, 'register_cron_schedules' ) );
-        add_action( 'ftc_auth_token_refresh', array( $this, 'handle_token_refresh' ) );
-        add_action( 'init', array( $this, 'maybe_schedule_token_refresh' ) );
     }
 
     /**
@@ -316,77 +313,6 @@ class FTC_Plugin {
         }
 
         return new FTC_Client( $credentials );
-    }
-
-    /**
-     * Register custom cron schedules.
-     *
-     * @param array $schedules Schedules.
-     *
-     * @return array
-     */
-    public function register_cron_schedules( $schedules ) {
-        if ( ! isset( $schedules['ftc_half_hour'] ) ) {
-            $schedules['ftc_half_hour'] = array(
-                'interval' => 30 * MINUTE_IN_SECONDS,
-                'display'  => __( 'Cada 30 minutos', 'ferk-topten-connector' ),
-            );
-        }
-
-        return $schedules;
-    }
-
-    /**
-     * Ensure token refresh action is scheduled.
-     */
-    public function maybe_schedule_token_refresh() {
-        if ( function_exists( 'as_has_scheduled_action' ) && function_exists( 'as_schedule_recurring_action' ) ) {
-            if ( ! as_has_scheduled_action( 'ftc_auth_token_refresh' ) ) {
-                as_schedule_recurring_action( time() + MINUTE_IN_SECONDS, 30 * MINUTE_IN_SECONDS, 'ftc_auth_token_refresh' );
-            }
-
-            return;
-        }
-
-        if ( ! wp_next_scheduled( 'ftc_auth_token_refresh' ) ) {
-            wp_schedule_event( time() + MINUTE_IN_SECONDS, 'ftc_half_hour', 'ftc_auth_token_refresh' );
-        }
-    }
-
-    /**
-     * Handle scheduled token refresh.
-     */
-    public function handle_token_refresh() {
-        $client = $this->client();
-        $logger = FTC_Logger::instance();
-        $now    = time();
-
-        foreach ( array( true, false ) as $sandbox ) {
-            try {
-                $data = $client->get_token( false, array( 'sandbox' => $sandbox ) );
-                $exp  = isset( $data['expiration'] ) ? (int) $data['expiration'] : 0;
-
-                if ( $exp <= $now + 300 ) {
-                    $client->get_token( true, array( 'sandbox' => $sandbox ) );
-                }
-            } catch ( Exception $e ) {
-                $reason = wp_strip_all_tags( $e->getMessage() );
-                if ( function_exists( 'mb_substr' ) ) {
-                    $reason = mb_substr( $reason, 0, 160 );
-                } else {
-                    $reason = substr( $reason, 0, 160 );
-                }
-
-                $logger->debug(
-                    'auth_token',
-                    'Token refresh skipped',
-                    array(
-                        'sandbox' => $sandbox ? 'yes' : 'no',
-                        'reason'  => $reason,
-                    )
-                );
-            }
-        }
     }
 
     /**
