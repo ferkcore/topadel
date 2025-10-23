@@ -15,7 +15,7 @@ Ferk Topten Connector agrega un gateway de pago "GetNet (TopTen)" y sincroniza c
 
 Desde la versión 0.3.1 puedes mapear productos de WooCommerce con TopTen por SKU y guardar únicamente el metadato `id_topten`, asegurando que el checkout utilice ese identificador como fuente principal. Además, la pestaña de productos te permite previsualizar coincidencias, sobrescribir valores existentes bajo demanda y exportar los resultados.
 
-Las integraciones consumen la API de TopTen utilizando únicamente la API Key configurada en la pestaña de credenciales, por lo que no es necesario gestionar tokens adicionales para acceder a productos o herramientas.
+Las integraciones consumen la API de TopTen y la herramienta de productos utiliza el endpoint público sin enviar tokens, API Keys ni cabeceras de autenticación, por lo que no es necesario gestionar credenciales adicionales para consultar el catálogo.
 
 == Instalación ==
 1. Sube la carpeta del plugin a `wp-content/plugins/` o instala el ZIP desde el administrador de WordPress.
@@ -32,7 +32,7 @@ Usa el botón "Testear conexión" en la pestaña de herramientas para verificar 
 
 == Changelog ==
 = 0.3.2 =
-* Elimina la autenticación por token y los campos asociados; ahora todas las solicitudes se firman únicamente con la API Key.
+* Ajusta la consulta de productos para usar el servicio público sin autenticación por token ni API Key.
 
 = 0.3.1 =
 * Añade pestaña "Productos" con herramienta para consultar `GetProductosDetail`, mapear por SKU y opcionalmente escribir el metadato `id_topten`.
