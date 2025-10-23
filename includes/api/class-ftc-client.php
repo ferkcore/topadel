@@ -138,31 +138,61 @@ class FTC_Client {
      * @throws Exception When the request fails or the response is invalid.
      */
     public function get_products_detail( array $payload, array $args = array() ) : array {
-        $args = array_merge(
-            array(
-                'use_api_key' => false,
-            ),
-            $args
-        );
+        $query = array();
 
-        $headers = $this->build_headers(
-            array(
-                'Content-Type' => 'application/json',
-                'Accept'       => 'application/json',
-            ),
-            $args
-        );
+        foreach ( $payload as $key => $value ) {
+            if ( null === $value ) {
+                continue;
+            }
+
+            if ( is_bool( $value ) ) {
+                $query[ $key ] = $value ? 'true' : 'false';
+                continue;
+            }
+
+            if ( is_scalar( $value ) ) {
+                if ( is_string( $value ) && '' === trim( $value ) ) {
+                    continue;
+                }
+
+                $query[ $key ] = $value;
+                continue;
+            }
+
+            if ( is_array( $value ) || is_object( $value ) ) {
+                $encoded = wp_json_encode( $value, JSON_UNESCAPED_UNICODE );
+                if ( false !== $encoded && '' !== $encoded ) {
+                    $query[ $key ] = $encoded;
+                }
+            }
+        }
+
+        $query = apply_filters( 'ftc_client_products_detail_query', $query, $payload, $args, $this );
 
         $endpoint = rtrim( $this->base_url( $args ), '/' ) . self::PATH_GETPRODUCTS_DETAIL;
 
-        $response = wp_remote_post(
-            $endpoint,
-            array(
-                'headers' => $headers,
-                'timeout' => $this->timeout( $args ),
-                'body'    => wp_json_encode( $payload, JSON_UNESCAPED_UNICODE ),
-            )
+        if ( ! empty( $query ) ) {
+            $endpoint = add_query_arg( $query, $endpoint );
+        }
+
+        $request_args = array(
+            'headers' => array(
+                'Accept' => 'application/json',
+            ),
+            'timeout' => $this->timeout( $args ),
         );
+
+        $request_args = apply_filters( 'ftc_client_products_detail_request_args', $request_args, $endpoint, $payload, $args, $this );
+
+        if ( isset( $request_args['headers'] ) && is_array( $request_args['headers'] ) ) {
+            foreach ( array_keys( $request_args['headers'] ) as $header_key ) {
+                if ( 0 === strcasecmp( 'Authorization', $header_key ) || 0 === strcasecmp( 'Api-Key', $header_key ) || 0 === strcasecmp( 'X-Api-Key', $header_key ) ) {
+                    unset( $request_args['headers'][ $header_key ] );
+                }
+            }
+        }
+
+        $response = wp_remote_get( $endpoint, $request_args );
 
         if ( is_wp_error( $response ) ) {
             throw new Exception( 'GetProductosDetail transport error: ' . $response->get_error_message() );
