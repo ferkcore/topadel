@@ -9,6 +9,8 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
+require_once FTC_PLUGIN_DIR . 'includes/helpers/class-ftc-utils.php';
+
 /**
  * Handles table creation.
  */
@@ -52,5 +54,101 @@ class FTC_DB {
         ) {$charset_collate};";
 
         dbDelta( $sql_logs );
+    }
+
+    /**
+     * Find map entry.
+     *
+     * @param string     $entity_type   Entity type.
+     * @param int        $wc_id         WooCommerce identifier.
+     * @param string|int $emailFallback Email fallback.
+     *
+     * @return array|null
+     */
+    public function find_map( $entity_type, $wc_id, $emailFallback = null ) {
+        global $wpdb;
+
+        $table       = $wpdb->prefix . 'ftc_maps';
+        $entity_type = sanitize_key( $entity_type );
+        $wc_id       = (int) $wc_id;
+
+        if ( $wc_id > 0 ) {
+            $row = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT * FROM {$table} WHERE entity_type = %s AND wc_id = %d LIMIT 1",
+                    $entity_type,
+                    $wc_id
+                ),
+                ARRAY_A
+            );
+
+            if ( $row ) {
+                return $row;
+            }
+        }
+
+        $emailFallback = is_string( $emailFallback ) ? trim( $emailFallback ) : '';
+        if ( '' === $emailFallback ) {
+            return null;
+        }
+
+        $hash = FTC_Utils::hash_identity( $emailFallback );
+        if ( '' === $hash ) {
+            return null;
+        }
+
+        $row = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT * FROM {$table} WHERE entity_type = %s AND hash = %s LIMIT 1",
+                $entity_type,
+                $hash
+            ),
+            ARRAY_A
+        );
+
+        return $row ? $row : null;
+    }
+
+    /**
+     * Upsert map entry.
+     *
+     * @param string $entity_type Entity type.
+     * @param int    $wc_id       WooCommerce identifier.
+     * @param string $external_id External identifier.
+     * @param string $hash        Hash of identity.
+     * @param array  $meta        Additional metadata.
+     */
+    public function upsert_map( $entity_type, $wc_id, $external_id, $hash, $meta = array() ) {
+        global $wpdb;
+
+        $table       = $wpdb->prefix . 'ftc_maps';
+        $entity_type = sanitize_key( $entity_type );
+        $wc_id       = (int) $wc_id;
+        $hash        = $hash ? substr( (string) $hash, 0, 64 ) : null;
+        $external_id = substr( (string) $external_id, 0, 64 );
+
+        $data_json = ! empty( $meta ) ? wp_json_encode( $meta, JSON_UNESCAPED_UNICODE ) : null;
+
+        $wpdb->replace(
+            $table,
+            array(
+                'entity_type' => $entity_type,
+                'wc_id'       => $wc_id,
+                'external_id' => $external_id,
+                'hash'        => $hash,
+                'data_json'   => $data_json,
+                'created_at'  => current_time( 'mysql', true ),
+                'updated_at'  => current_time( 'mysql', true ),
+            ),
+            array(
+                '%s',
+                '%d',
+                '%s',
+                '%s',
+                '%s',
+                '%s',
+                '%s',
+            )
+        );
     }
 }
