@@ -7,7 +7,7 @@
  * Author:            Ferk
  * Requires PHP:      7.4
  * Requires at least: 6.0
- * WC requires at least: 8.0
+ * WC requires at least: 7.0
  * Text Domain:       ferk-topten-connector
  * Domain Path:       /languages
  *

@@ -197,9 +197,9 @@ class FTC_Plugin {
         }
 
         if ( ! class_exists( 'WooCommerce' ) ) {
-            $this->missing_dependencies[] = __( 'WooCommerce 8.0+', 'ferk-topten-connector' );
-        } elseif ( defined( 'WC_VERSION' ) && version_compare( WC_VERSION, '8.0', '<' ) ) {
-            $this->missing_dependencies[] = __( 'WooCommerce 8.0+', 'ferk-topten-connector' );
+            $this->missing_dependencies[] = __( 'WooCommerce 7.0+', 'ferk-topten-connector' );
+        } elseif ( defined( 'WC_VERSION' ) && version_compare( WC_VERSION, '7.0', '<' ) ) {
+            $this->missing_dependencies[] = __( 'WooCommerce 7.0+', 'ferk-topten-connector' );
         } elseif ( ! class_exists( 'WC_Payment_Gateway' ) ) {
             $this->missing_dependencies[] = __( 'WooCommerce payment gateway framework', 'ferk-topten-connector' );
         }
