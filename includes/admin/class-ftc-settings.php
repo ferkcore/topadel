@@ -334,7 +334,7 @@ class FTC_Settings {
         $client      = FTC_Plugin::instance()->client( $credentials );
 
         $sucursal_id  = $sucursal > 0 ? $sucursal : 78;
-        $origen_label = 'Top Padel Fit Center';
+        $origen_label = 'Top padel';
 
         $store_country_state = get_option( 'woocommerce_default_country', '' );
         if ( $store_country_state ) {
@@ -355,9 +355,6 @@ class FTC_Settings {
         );
 
         $info_extra = implode( ', ', $store_address_parts );
-        if ( '' === $info_extra ) {
-            $info_extra = $origen_label;
-        }
 
         $json_pedido = array(
             'request'   => array(

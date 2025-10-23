@@ -30,12 +30,18 @@ class FTC_JsonPedido {
                 continue;
             }
 
-            $prod_id = \FTC_Utils::resolve_topten_product_id( $product );
+            $stored_prod_id = (int) $item->get_meta( '_ftc_topten_prod_id', true );
+            $prod_id        = $stored_prod_id > 0 ? $stored_prod_id : \FTC_Utils::resolve_topten_product_id( $product );
             if ( ! $prod_id ) {
                 continue;
             }
 
-            list( $chosen_ids_csv, $chosen_text ) = \FTC_Utils::resolve_chosen_terms_for_item( $product, $item );
+            $chosen_ids_csv = (string) $item->get_meta( '_ftc_topten_chosen_terms', true );
+            $chosen_text    = (string) $item->get_meta( '_ftc_topten_chosen_terms_text', true );
+
+            if ( '' === trim( $chosen_ids_csv ) && '' === trim( $chosen_text ) ) {
+                list( $chosen_ids_csv, $chosen_text ) = \FTC_Utils::resolve_chosen_terms_for_item( $product, $item );
+            }
 
             $productos[] = array_filter(
                 array(
@@ -99,9 +105,6 @@ class FTC_JsonPedido {
         }
 
         $info_extra = implode( ', ', $shipping_address_parts );
-        if ( '' === $info_extra ) {
-            $info_extra = 'Pedido WooCommerce #' . $order->get_order_number();
-        }
 
         $entrega_usuario = array(
             'sucu_Id'           => (int) ( isset( $opts['sucursal_id'] ) ? $opts['sucursal_id'] : 78 ),
@@ -123,7 +126,7 @@ class FTC_JsonPedido {
                 'mone_Id'           => (int) ( isset( $opts['mone_id'] ) ? $opts['mone_id'] : 2 ),
                 'codigoCupon'       => '',
                 'usua_Cod'          => (int) ( isset( $opts['usua_cod'] ) ? $opts['usua_cod'] : 0 ),
-                'origen'            => (string) ( isset( $opts['origen'] ) && '' !== trim( $opts['origen'] ) ? $opts['origen'] : 'Top Padel Fit Center' ),
+                'origen'            => (string) ( isset( $opts['origen'] ) && '' !== trim( $opts['origen'] ) ? $opts['origen'] : 'Top padel' ),
                 'productosPedido'   => $productos,
             ),
             'cartItems' => new \stdClass(),

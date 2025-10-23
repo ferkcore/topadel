@@ -73,6 +73,15 @@ class FTC_Cart_Sync {
                     return null !== $value && '' !== $value;
                 }
             );
+
+            $item->update_meta_data( '_ftc_topten_prod_id', (int) $prod_id );
+            if ( $chosen_ids ) {
+                $item->update_meta_data( '_ftc_topten_chosen_terms', $chosen_ids );
+            }
+            if ( $chosen_text ) {
+                $item->update_meta_data( '_ftc_topten_chosen_terms_text', $chosen_text );
+            }
+            $item->save();
         }
 
         if ( empty( $items ) ) {
@@ -94,6 +103,7 @@ class FTC_Cart_Sync {
 
         $order->delete_meta_data( '_ftc_topten_missing_products' );
         $order->update_meta_data( '_ftc_topten_cart_id', (string) $cart_id );
+        $order->update_meta_data( '_ftc_topten_cart_products', $items );
         $order->save();
 
         return (string) $cart_id;
