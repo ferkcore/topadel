@@ -165,11 +165,25 @@ class FTC_Gateway_Getnet extends WC_Payment_Gateway {
             return array( 'result' => 'fail' );
         }
 
+        $plugin        = FTC_Plugin::instance();
+        $customer_sync = $plugin->customer_sync();
+        $cart_sync     = $plugin->cart_sync();
+
+        $topten_user_id = '';
+
         try {
-            $customer_sync = new FTC_Customer_Sync();
-            $cart_sync     = new FTC_Cart_Sync();
-            $user_id       = $customer_sync->get_or_create_topten_user_from_order( $order );
-            $cart_id       = $cart_sync->create_topten_cart_from_order( $order, $user_id );
+            $topten_user_id = $customer_sync->get_or_create_topten_user_from_order( $order );
+            $order->update_meta_data( '_ftc_topten_user_id', $topten_user_id );
+            $order->save();
+        } catch ( \Throwable $e ) {
+            FTC_Logger::instance()->error( 'gateway', 'create_user_failed: ' . $e->getMessage(), array( 'order_id' => $order_id ) );
+            wc_add_notice( __( 'No pudimos crear el usuario en TopTen. Intenta nuevamente o elige otro método de pago.', 'ferk-topten-connector' ), 'error' );
+
+            return array( 'result' => 'fail' );
+        }
+
+        try {
+            $cart_id = $cart_sync->create_topten_cart_from_order( $order, $topten_user_id );
 
             $return_url  = add_query_arg(
                 array(

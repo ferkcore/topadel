@@ -120,7 +120,12 @@ class FTC_Logger {
             $lower = strtolower( (string) $key );
             if ( is_array( $value ) ) {
                 $payload[ $key ] = $this->mask_payload( $value );
-            } elseif ( false !== strpos( $lower, 'secret' ) || false !== strpos( $lower, 'key' ) ) {
+            } elseif (
+                false !== strpos( $lower, 'secret' ) ||
+                false !== strpos( $lower, 'key' ) ||
+                false !== strpos( $lower, 'password' ) ||
+                false !== strpos( $lower, 'clave' )
+            ) {
                 $payload[ $key ] = '***';
             }
         }

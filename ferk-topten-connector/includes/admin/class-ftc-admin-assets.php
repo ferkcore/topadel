@@ -51,10 +51,15 @@ class FTC_Admin_Assets {
             array(
                 'ajaxUrl' => admin_url( 'admin-ajax.php' ),
                 'nonce'   => wp_create_nonce( 'ftc_tools_action' ),
+                'restNonce' => wp_create_nonce( 'wp_rest' ),
+                'testUserUrl' => rest_url( 'ftc/v1/admin/test-user' ),
                 'messages' => array(
                     'testing' => __( 'Testing connection...', 'ferk-topten-connector' ),
                     'success' => __( 'Connection successful.', 'ferk-topten-connector' ),
                     'error'   => __( 'Connection failed.', 'ferk-topten-connector' ),
+                    'userTesting' => __( 'Creando usuario de prueba...', 'ferk-topten-connector' ),
+                    'userSuccess' => __( 'Usuario TopTen creado: %s', 'ferk-topten-connector' ),
+                    'userError'   => __( 'No se pudo crear el usuario de prueba.', 'ferk-topten-connector' ),
                 ),
             )
         );

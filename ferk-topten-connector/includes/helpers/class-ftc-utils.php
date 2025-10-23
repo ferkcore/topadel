@@ -14,6 +14,11 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class FTC_Utils {
     /**
+     * Default TopTen entity id.
+     */
+    const FTCTOPTEN_ENTITY_ID = 51;
+
+    /**
      * Generate a UUID v4 string.
      *
      * @return string
@@ -101,5 +106,110 @@ class FTC_Utils {
      */
     public static function option_name() {
         return 'ftc_settings';
+    }
+
+    /**
+     * Generate random password.
+     *
+     * @param int $length Length.
+     *
+     * @return string
+     */
+    public static function random_password( $length = 24 ) {
+        $length = max( 8, (int) $length );
+
+        return wp_generate_password( $length, true, true );
+    }
+
+    /**
+     * Hash identity (email) for lookup.
+     *
+     * @param string $email Email.
+     *
+     * @return string
+     */
+    public static function hash_identity( $email ) {
+        $normalized = trim( (string) $email );
+        if ( function_exists( 'mb_strtolower' ) ) {
+            $normalized = mb_strtolower( $normalized, 'UTF-8' );
+        } else {
+            $normalized = strtolower( $normalized );
+        }
+
+        return sha1( $normalized );
+    }
+
+    /**
+     * Split raw phone into DDI and local number.
+     *
+     * @param string $raw_phone Raw phone.
+     * @param string $country   Country ISO2.
+     *
+     * @return array
+     */
+    public static function split_phone( $raw_phone, $country ) {
+        $raw_phone = trim( (string) $raw_phone );
+        $country   = strtoupper( trim( (string) $country ) );
+
+        if ( '' === $raw_phone ) {
+            return array( '', '' );
+        }
+
+        $clean = preg_replace( '/[\s\-\(\)]/', '', $raw_phone );
+
+        if ( 0 === strpos( $clean, '+' ) ) {
+            if ( preg_match( '/^\+(\d{1,4})(\d*)$/', $clean, $matches ) ) {
+                $ddi   = '+' . $matches[1];
+                $local = $matches[2];
+
+                return array( $ddi, $local );
+            }
+        }
+
+        $map = apply_filters(
+            'ftc_topten_country_ddi_map',
+            array(
+                'UY' => '+598',
+                'AR' => '+54',
+                'BR' => '+55',
+            )
+        );
+
+        $ddi = isset( $map[ $country ] ) ? (string) $map[ $country ] : '';
+        $local = preg_replace( '/\D+/', '', $clean );
+
+        return array( $ddi, $local );
+    }
+
+    /**
+     * Normalise date/datetime to ISO8601 without timezone.
+     *
+     * @param mixed $value Value.
+     *
+     * @return string|null
+     */
+    public static function normalize_datetime_nullable( $value ) {
+        if ( null === $value ) {
+            return null;
+        }
+
+        $value = trim( (string) $value );
+        if ( '' === $value ) {
+            return null;
+        }
+
+        if ( is_numeric( $value ) ) {
+            $timestamp = (int) $value;
+            if ( $timestamp > 0 && $timestamp < 10000000000 ) {
+                return gmdate( 'Y-m-d\TH:i:s', $timestamp );
+            }
+        }
+
+        $parsed = strtotime( $value );
+        if ( false === $parsed ) {
+            return null;
+        }
+
+        return gmdate( 'Y-m-d\TH:i:s', $parsed );
     }
 }

@@ -85,6 +85,27 @@ class FTC_Plugin {
     protected $settings = array();
 
     /**
+     * Database helper instance.
+     *
+     * @var FTC_DB|null
+     */
+    protected $db_instance = null;
+
+    /**
+     * Customer sync instance.
+     *
+     * @var FTC_Customer_Sync|null
+     */
+    protected $customer_sync_instance = null;
+
+    /**
+     * Cart sync instance.
+     *
+     * @var FTC_Cart_Sync|null
+     */
+    protected $cart_sync_instance = null;
+
+    /**
      * Get singleton instance.
      *
      * @return FTC_Plugin
@@ -272,6 +293,17 @@ class FTC_Plugin {
     }
 
     /**
+     * Alias for get_client.
+     *
+     * @param array|null $credentials Credentials.
+     *
+     * @return FTC_Client
+     */
+    public function client( $credentials = null ) {
+        return $this->get_client( $credentials );
+    }
+
+    /**
      * Get client configured for a specific order.
      *
      * @param WC_Order $order Order.
@@ -285,7 +317,7 @@ class FTC_Plugin {
             $credentials = $this->get_gateway_instance()->get_gateway_config();
         }
 
-        return new FTC_Client( $credentials );
+        return $this->client( $credentials );
     }
 
     /**
@@ -310,9 +342,11 @@ class FTC_Plugin {
      * @throws Exception When fails.
      */
     public function recreate_payment_for_order( $order ) {
-        $customer_sync = new FTC_Customer_Sync();
-        $cart_sync     = new FTC_Cart_Sync();
+        $customer_sync = $this->customer_sync();
+        $cart_sync     = $this->cart_sync();
         $user_id       = $customer_sync->get_or_create_topten_user_from_order( $order );
+        $order->update_meta_data( '_ftc_topten_user_id', $user_id );
+        $order->save();
         $cart_id       = $cart_sync->create_topten_cart_from_order( $order, $user_id );
 
         $return_url  = add_query_arg(
@@ -358,5 +392,44 @@ class FTC_Plugin {
         FTC_Logger::instance()->info( 'payment_retry', __( 'Pago recreado desde administración.', 'ferk-topten-connector' ), array( 'order_id' => $order->get_id(), 'payment_id' => $payment_id ) );
 
         return $response;
+    }
+
+    /**
+     * Get database helper.
+     *
+     * @return FTC_DB
+     */
+    public function db() {
+        if ( null === $this->db_instance ) {
+            $this->db_instance = new FTC_DB();
+        }
+
+        return $this->db_instance;
+    }
+
+    /**
+     * Get customer sync helper.
+     *
+     * @return FTC_Customer_Sync
+     */
+    public function customer_sync() {
+        if ( null === $this->customer_sync_instance ) {
+            $this->customer_sync_instance = new FTC_Customer_Sync( $this->db() );
+        }
+
+        return $this->customer_sync_instance;
+    }
+
+    /**
+     * Get cart sync helper.
+     *
+     * @return FTC_Cart_Sync
+     */
+    public function cart_sync() {
+        if ( null === $this->cart_sync_instance ) {
+            $this->cart_sync_instance = new FTC_Cart_Sync();
+        }
+
+        return $this->cart_sync_instance;
     }
 }

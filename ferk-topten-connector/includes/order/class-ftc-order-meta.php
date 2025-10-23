@@ -55,7 +55,10 @@ class FTC_Order_Meta {
         $status      = $order->get_meta( '_ftc_topten_payment_status' );
 
         ?>
-        <p><strong><?php esc_html_e( 'Usuario TopTen:', 'ferk-topten-connector' ); ?></strong> <?php echo esc_html( $user_id ? $user_id : '—' ); ?></p>
+        <p>
+            <label for="ftc-topten-user-id"><strong><?php esc_html_e( 'TopTen User ID', 'ferk-topten-connector' ); ?></strong></label><br />
+            <input type="text" id="ftc-topten-user-id" class="widefat" value="<?php echo esc_attr( $user_id ); ?>" readonly placeholder="<?php esc_attr_e( 'No disponible', 'ferk-topten-connector' ); ?>" />
+        </p>
         <p><strong><?php esc_html_e( 'Carrito TopTen:', 'ferk-topten-connector' ); ?></strong> <?php echo esc_html( $cart_id ? $cart_id : '—' ); ?></p>
         <p><strong><?php esc_html_e( 'Pago TopTen:', 'ferk-topten-connector' ); ?></strong> <?php echo esc_html( $payment_id ? $payment_id : '—' ); ?></p>
         <p><strong><?php esc_html_e( 'Estado pago TopTen:', 'ferk-topten-connector' ); ?></strong> <?php echo esc_html( $status ? $status : '—' ); ?></p>

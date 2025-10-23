@@ -11,11 +11,36 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 require_once FTC_PLUGIN_DIR . 'includes/helpers/class-ftc-logger.php';
 require_once FTC_PLUGIN_DIR . 'includes/helpers/class-ftc-utils.php';
+require_once FTC_PLUGIN_DIR . 'includes/db/class-ftc-db.php';
 
 /**
  * Sync WooCommerce customers with TopTen.
  */
 class FTC_Customer_Sync {
+    const FTCTOPTEN_ENTITY_ID = 51;
+
+    /**
+     * Database helper.
+     *
+     * @var FTC_DB
+     */
+    protected $db;
+
+    /**
+     * Constructor.
+     *
+     * @param FTC_DB|null $db DB helper.
+     */
+    public function __construct( $db = null ) {
+        if ( $db instanceof FTC_DB ) {
+            $this->db = $db;
+        } elseif ( class_exists( 'FTC_Plugin' ) ) {
+            $this->db = FTC_Plugin::instance()->db();
+        } else {
+            $this->db = new FTC_DB();
+        }
+    }
+
     /**
      * Obtain or create TopTen user based on order.
      *
@@ -25,104 +50,80 @@ class FTC_Customer_Sync {
      * @throws Exception When creation fails.
      */
     public function get_or_create_topten_user_from_order( $order ) {
-        global $wpdb;
+        $wc_user_id = (int) $order->get_user_id();
+        $email      = sanitize_email( $order->get_billing_email() );
 
-        $table        = $wpdb->prefix . 'ftc_maps';
-        $user_id      = $order->get_user_id();
-        $email        = $order->get_billing_email();
-        $hash         = $email ? md5( strtolower( $email ) ) : '';
-        $wc_identifier = $user_id ? (int) $user_id : $this->get_guest_identifier( $email );
-
-        if ( $wc_identifier ) {
-            $row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE entity_type = %s AND wc_id = %d", 'customer', $wc_identifier ), ARRAY_A );
-            if ( $row && ! empty( $row['external_id'] ) ) {
-                $order->update_meta_data( '_ftc_topten_user_id', $row['external_id'] );
-                $order->save();
-
-                return $row['external_id'];
-            }
+        $map = $this->db->find_map( 'customer', $wc_user_id > 0 ? $wc_user_id : 0, $email );
+        if ( $map && ! empty( $map['external_id'] ) ) {
+            return (string) $map['external_id'];
         }
 
-        if ( $hash ) {
-            $row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE entity_type = %s AND hash = %s", 'customer', $hash ), ARRAY_A );
-            if ( $row && ! empty( $row['external_id'] ) ) {
-                $order->update_meta_data( '_ftc_topten_user_id', $row['external_id'] );
-                $order->save();
+        $first   = wc_clean( $order->get_billing_first_name() );
+        $last    = wc_clean( $order->get_billing_last_name() );
+        $phone   = wc_clean( $order->get_billing_phone() );
+        $country = wc_strtoupper( wc_clean( $order->get_billing_country() ) );
 
-                return $row['external_id'];
-            }
+        list($ddi, $local_phone) = FTC_Utils::split_phone( $phone, $country );
+
+        $doc_type = apply_filters( 'ftc_topten_document_type', (string) $order->get_meta( '_billing_document_type' ) );
+        $doc_num  = apply_filters( 'ftc_topten_document_number', (string) $order->get_meta( '_billing_document' ) );
+
+        $birth     = (string) $order->get_meta( '_billing_birthdate' );
+        $birth_iso = FTC_Utils::normalize_datetime_nullable( $birth );
+
+        $external_id = $wc_user_id > 0 ? (string) $wc_user_id : (string) $email;
+        $password    = FTC_Utils::random_password( 24 );
+
+        if ( ! is_email( $email ) ) {
+            throw new Exception( 'Correo inválido para NewRegister' );
         }
 
-        $client  = FTC_Plugin::instance()->get_client_from_order( $order );
-        $payload = array(
-            'email'          => $email,
-            'first_name'     => $order->get_billing_first_name(),
-            'last_name'      => $order->get_billing_last_name(),
-            'phone'          => $order->get_billing_phone(),
-            'billing_address' => array(
-                'address_1' => $order->get_billing_address_1(),
-                'address_2' => $order->get_billing_address_2(),
-                'city'      => $order->get_billing_city(),
-                'state'     => $order->get_billing_state(),
-                'postcode'  => $order->get_billing_postcode(),
-                'country'   => $order->get_billing_country(),
+        $payload = array_filter(
+            array(
+                'Nombre'             => $first ? $first : null,
+                'Apellido'           => $last ? $last : null,
+                'Correo'             => $email,
+                'Clave'              => $password,
+                'Telefono'           => $local_phone ? $local_phone : null,
+                'TipoDocumento'      => $doc_type ? $doc_type : null,
+                'Documento'          => $doc_num ? $doc_num : null,
+                'IndicativoTelefono' => $ddi ? $ddi : null,
+                'Enti_Id'            => apply_filters( 'ftc_topten_entity_id', self::FTCTOPTEN_ENTITY_ID ),
+                'FechaCumple'        => $birth_iso ? $birth_iso : null,
+                'ExternalId'         => $external_id,
             ),
+            static function( $value ) {
+                return null !== $value && '' !== $value;
+            }
         );
 
-        $payload = apply_filters( 'ftc_create_user_payload', $payload, $order );
+        $client = FTC_Plugin::instance()->client();
+        $id     = (int) $client->create_user_newregister( $payload );
 
-        $response = $client->create_user( $payload );
-        if ( empty( $response['id'] ) ) {
-            throw new Exception( __( 'Respuesta inválida al crear usuario TopTen.', 'ferk-topten-connector' ) );
+        if ( $id <= 0 ) {
+            throw new Exception( 'TopTen NewRegister retornó 0 (error creando usuario)' );
         }
 
-        $external_id = $response['id'];
-        $data_json   = wp_json_encode( $response );
-
-        $wpdb->replace(
-            $table,
+        $hash = FTC_Utils::hash_identity( $email );
+        $this->db->upsert_map(
+            'customer',
+            $wc_user_id > 0 ? $wc_user_id : 0,
+            (string) $id,
+            $hash,
             array(
-                'entity_type' => 'customer',
-                'wc_id'       => $wc_identifier ? $wc_identifier : 0,
-                'external_id' => $external_id,
-                'hash'        => $hash,
-                'data_json'   => $data_json,
-                'created_at'  => current_time( 'mysql', true ),
-                'updated_at'  => current_time( 'mysql', true ),
-            ),
-            array(
-                '%s',
-                '%d',
-                '%s',
-                '%s',
-                '%s',
-                '%s',
-                '%s',
+                'email'       => $email,
+                'first'       => $first,
+                'last'        => $last,
+                'phone'       => $phone,
+                'ddi'         => $ddi,
+                'doc'         => $doc_num,
+                'doc_type'    => $doc_type,
+                'birth'       => $birth_iso,
+                'externalId'  => $external_id,
+                'created_from'=> 'NewRegister',
             )
         );
 
-        $order->update_meta_data( '_ftc_topten_user_id', $external_id );
-        $order->save();
-
-        FTC_Logger::instance()->info( 'customer_sync', __( 'Usuario TopTen vinculado.', 'ferk-topten-connector' ), array( 'order_id' => $order->get_id(), 'topten_user_id' => $external_id ) );
-
-        return $external_id;
-}
-
-    /**
-     * Generate guest identifier using email hash.
-     *
-     * @param string $email Email.
-     *
-     * @return int
-     */
-    protected function get_guest_identifier( $email ) {
-        if ( empty( $email ) ) {
-            return 0;
-        }
-
-        $crc = sprintf( '%u', crc32( strtolower( $email ) ) );
-
-        return (int) $crc;
+        return (string) $id;
     }
 }
