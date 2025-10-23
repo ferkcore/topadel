@@ -137,9 +137,22 @@ class FTC_Client {
      * @throws Exception When the request fails or the response is invalid.
      */
     public function get_products_detail( array $payload, array $args = array() ) : array {
-        $headers = $this->build_headers( array( 'Content-Type' => 'application/json' ), $args );
+        $args = array_merge(
+            array(
+                'use_api_key' => false,
+            ),
+            $args
+        );
 
-        $endpoint = $this->base_url( $args ) . self::PATH_GETPRODUCTS_DETAIL;
+        $headers = $this->build_headers(
+            array(
+                'Content-Type' => 'application/json',
+                'Accept'       => 'application/json',
+            ),
+            $args
+        );
+
+        $endpoint = rtrim( $this->base_url( $args ), '/' ) . self::PATH_GETPRODUCTS_DETAIL;
 
         $response = wp_remote_post(
             $endpoint,
