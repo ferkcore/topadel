@@ -3,7 +3,7 @@
  * Plugin Name:       Ferk Topten Connector
  * Plugin URI:        https://example.com/
  * Description:       Integrates WooCommerce with the TopTen platform and GetNet payments.
- * Version:           0.2.4
+ * Version:           0.3.0
  * Author:            Ferk
  * Requires PHP:      7.4
  * Requires at least: 6.0
@@ -29,7 +29,7 @@ define( 'FTC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 }
 
 if ( ! defined( 'FTC_PLUGIN_VERSION' ) ) {
-    define( 'FTC_PLUGIN_VERSION', '0.2.4' );
+    define( 'FTC_PLUGIN_VERSION', '0.3.0' );
 }
 
 /**

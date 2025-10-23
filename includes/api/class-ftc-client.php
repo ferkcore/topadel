@@ -22,6 +22,7 @@ class FTC_Client {
     const PATH_HEALTH                = '/health';
     const PATH_ADD_CART_EXTERNAL     = '/api/Cart/AddCartProductExternal';
     const PATH_PAYMENT_PLACETOPAY    = '/api/CommonWeb/PaymentPlacetopay';
+    const PATH_GETTOKEN              = '/api/Account/GetToken';
 
     /**
      * Configuration array.
@@ -53,12 +54,20 @@ class FTC_Client {
         $method = strtoupper( $method );
         $path   = apply_filters( 'ftc_api_path', $path, $method, $args, $this );
 
+        if ( ! empty( $args['use_token'] ) && ! isset( $args['ftc_token_data'] ) ) {
+            $args['ftc_token_data'] = $this->get_token( false, $args );
+        }
+
         $base = $this->base_url( $args );
         if ( empty( $base ) ) {
             throw new Exception( __( 'Base URL no configurada.', 'ferk-topten-connector' ) );
         }
 
         $url = rtrim( $base, '/' ) . '/' . ltrim( $path, '/' );
+
+        if ( ! empty( $args['query'] ) && is_array( $args['query'] ) ) {
+            $url = add_query_arg( $args['query'], $url );
+        }
 
         $extra_headers = isset( $args['headers'] ) && is_array( $args['headers'] ) ? $args['headers'] : array();
         if ( ! empty( $args['idempotency_key'] ) ) {
@@ -74,16 +83,20 @@ class FTC_Client {
         $logger = FTC_Logger::instance();
         $backoff_schedule = array( 60, 300, 900 );
 
+        $request_args = array(
+            'method'  => $method,
+            'headers' => $headers,
+            'timeout' => $timeout,
+        );
+
+        if ( null !== $body ) {
+            $request_args['body'] = $body;
+        }
+
+        $token_refreshed = false;
+
         for ( $attempt = 0; $attempt <= $retries; $attempt++ ) {
-            $response = wp_remote_request(
-                $url,
-                array(
-                    'method'  => $method,
-                    'headers' => $headers,
-                    'timeout' => $timeout,
-                    'body'    => $body,
-                )
-            );
+            $response = wp_remote_request( $url, $request_args );
 
             if ( is_wp_error( $response ) ) {
                 if ( $attempt >= $retries ) {
@@ -96,6 +109,18 @@ class FTC_Client {
             }
 
             $code = (int) wp_remote_retrieve_response_code( $response );
+
+            if ( 401 === $code && ! empty( $args['use_token'] ) ) {
+                if ( ! $token_refreshed ) {
+                    $token_refreshed          = true;
+                    $args['ftc_token_data']   = $this->get_token( true, $args );
+                    $headers                   = $this->build_headers( $extra_headers, $args );
+                    $request_args['headers']   = $headers;
+                    continue;
+                }
+
+                throw new Exception( __( 'Autenticación inválida después de renovar el token.', 'ferk-topten-connector' ) );
+            }
 
             if ( in_array( $code, array( 429, 500, 502, 503, 504 ), true ) && $attempt < $retries ) {
                 $retry_after = (int) wp_remote_retrieve_header( $response, 'retry-after' );
@@ -121,12 +146,181 @@ class FTC_Client {
     }
 
     /**
+     * Obtener token de autenticación.
+     *
+     * @param bool  $force_refresh Forzar actualización.
+     * @param array $args          Argumentos del request.
+     *
+     * @return array
+     * @throws \Exception Cuando falta información o falla la solicitud.
+     */
+    public function get_token( bool $force_refresh = false, array $args = array() ) : array {
+        $credentials = $this->credentials( $args );
+        $sandbox     = $this->is_sandbox( $credentials, $args );
+        $env_key     = $sandbox ? 'sandbox' : 'prod';
+        $k_val       = "ftc_token_value_{$env_key}";
+        $k_exp       = "ftc_token_exp_{$env_key}";
+        $now         = time();
+
+        $defaults = array(
+            'user_option'            => 'ftc_auth_user',
+            'pass_option'            => 'ftc_auth_pass',
+            'enti_option'            => 'ftc_auth_enti_id',
+            'token_value_option'     => $k_val,
+            'token_exp_option'       => $k_exp,
+            'user_value'             => null,
+            'pass_value'             => null,
+            'enti_value'             => null,
+            'token_value'            => null,
+            'token_expiration'       => null,
+            'get_option_callback'    => null,
+            'update_option_callback' => null,
+        );
+
+        $context_args = array(
+            'context'      => 'token_request',
+            'request_args' => $args,
+        );
+
+        $map = apply_filters( 'ftc_auth_token_option_keys', $defaults, $env_key, $context_args, $this );
+        if ( ! is_array( $map ) ) {
+            $map = array();
+        }
+        $map = array_merge( $defaults, $map );
+
+        $getter = isset( $map['get_option_callback'] ) && is_callable( $map['get_option_callback'] ) ? $map['get_option_callback'] : null;
+        $updater = isset( $map['update_option_callback'] ) && is_callable( $map['update_option_callback'] ) ? $map['update_option_callback'] : null;
+
+        $fetch_option = function ( $key, $default = null ) use ( $getter ) {
+            if ( null === $key || '' === $key ) {
+                return $default;
+            }
+
+            if ( $getter ) {
+                return call_user_func( $getter, $key, $default );
+            }
+
+            return get_option( $key, $default );
+        };
+
+        $store_option = function ( $key, $value ) use ( $updater ) {
+            if ( $updater ) {
+                call_user_func( $updater, $key, $value );
+                return;
+            }
+
+            if ( $key ) {
+                update_option( $key, $value, false );
+            }
+        };
+
+        $cached_token = null !== $map['token_value'] ? $map['token_value'] : $fetch_option( $map['token_value_option'], '' );
+        $cached_exp   = null !== $map['token_expiration'] ? $map['token_expiration'] : $fetch_option( $map['token_exp_option'], 0 );
+        $cached_exp   = is_numeric( $cached_exp ) ? (int) $cached_exp : (int) $cached_exp;
+
+        if ( ! $force_refresh ) {
+            $cached_token = is_scalar( $cached_token ) ? (string) $cached_token : '';
+            if ( '' !== $cached_token && $cached_exp > ( $now + 120 ) ) {
+                return array(
+                    'token'      => $cached_token,
+                    'expiration' => $cached_exp,
+                );
+            }
+        }
+
+        $user = null !== $map['user_value'] ? $map['user_value'] : $fetch_option( $map['user_option'], '' );
+        $pass = null !== $map['pass_value'] ? $map['pass_value'] : $fetch_option( $map['pass_option'], '' );
+        $enti = null !== $map['enti_value'] ? $map['enti_value'] : $fetch_option( $map['enti_option'], 51 );
+
+        $user = trim( (string) $user );
+        $pass = (string) $pass;
+        $enti = (int) $enti;
+
+        if ( '' === $user || '' === $pass || $enti <= 0 ) {
+            throw new \Exception( 'AuthGetToken: credenciales incompletas.' );
+        }
+
+        $headers = array(
+            'Content-Type' => 'application/json',
+        );
+
+        $payload = array(
+            'user'      => $user,
+            'password'  => $pass,
+            'enti_Id'   => $enti,
+        );
+
+        $base_args = $args;
+        $base_args['credentials'] = $credentials;
+        $base_args['sandbox']     = $sandbox;
+
+        $response = wp_remote_post(
+            $this->base_url( $base_args ) . self::PATH_GETTOKEN,
+            array(
+                'headers' => $headers,
+                'timeout' => $this->timeout( $args ),
+                'body'    => wp_json_encode( $payload, JSON_UNESCAPED_UNICODE ),
+            )
+        );
+
+        if ( is_wp_error( $response ) ) {
+            throw new \Exception( 'AuthGetToken transport error: ' . $response->get_error_message() );
+        }
+
+        $code = wp_remote_retrieve_response_code( $response );
+        $raw  = wp_remote_retrieve_body( $response );
+
+        if ( 401 === $code ) {
+            throw new \Exception( 'AuthGetToken: credenciales inválidas (401).' );
+        }
+
+        $json = json_decode( $raw, true );
+        if ( ! is_array( $json ) || empty( $json['token'] ) ) {
+            throw new \Exception( 'AuthGetToken respuesta inesperada: ' . $raw );
+        }
+
+        $token = (string) $json['token'];
+        $exp   = isset( $json['expiration'] ) ? ( is_numeric( $json['expiration'] ) ? (int) $json['expiration'] : strtotime( (string) $json['expiration'] ) ) : 0;
+        if ( $exp <= 0 ) {
+            $exp = $now + 3600;
+        }
+
+        $store_option( $map['token_value_option'], $token );
+        $store_option( $map['token_exp_option'], $exp );
+
+        return array(
+            'token'      => $token,
+            'expiration' => $exp,
+        );
+    }
+
+    /**
      * Perform health check.
      *
      * @return array
      */
     public function health() {
         return $this->request( 'GET', self::PATH_HEALTH );
+    }
+
+    /**
+     * Retrieve products (stub implementation).
+     *
+     * @param array $query Query parameters.
+     * @param array $args  Request arguments.
+     *
+     * @return array
+     */
+    public function get_products( array $query = array(), array $args = array() ) {
+        $request_args = wp_parse_args(
+            array(
+                'use_token' => true,
+                'query'     => $query,
+            ),
+            $args
+        );
+
+        return $this->request( 'GET', '/api/Products', $request_args );
     }
 
     /**
@@ -406,9 +600,24 @@ class FTC_Client {
         }
 
         $credentials = $this->credentials( $args );
+        $use_api_key = array_key_exists( 'use_api_key', $args ) ? (bool) $args['use_api_key'] : true;
+        $use_token   = ! empty( $args['use_token'] );
 
-        if ( ! empty( $credentials['api_key'] ) && empty( $headers['Authorization'] ) ) {
-            $headers['Authorization'] = 'Bearer ' . $credentials['api_key'];
+        if ( $use_token ) {
+            $token_data = isset( $args['ftc_token_data'] ) && is_array( $args['ftc_token_data'] ) ? $args['ftc_token_data'] : $this->get_token( false, $args );
+            if ( ! empty( $token_data['token'] ) ) {
+                $headers['Authorization'] = 'Bearer ' . $token_data['token'];
+            }
+        }
+
+        $api_key = isset( $credentials['api_key'] ) ? (string) $credentials['api_key'] : '';
+
+        if ( $use_api_key && '' !== $api_key ) {
+            if ( $use_token ) {
+                $headers['X-Api-Key'] = $api_key;
+            } elseif ( empty( $headers['Authorization'] ) ) {
+                $headers['Authorization'] = 'Bearer ' . $api_key;
+            }
         }
 
         return apply_filters( 'ftc_client_headers', $headers, $args, $this );

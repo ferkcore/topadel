@@ -39,6 +39,91 @@ class FTC_Settings {
     }
 
     /**
+     * Get auth storage map allowing integrators to override option keys.
+     *
+     * @param string     $env_key Environment key.
+     * @param array      $args    Context args.
+     * @param FTC_Client $client  Client instance or null.
+     *
+     * @return array
+     */
+    protected function get_auth_storage_map( $env_key = 'settings', $args = array(), $client = null ) {
+        $defaults = array(
+            'user_option'            => 'ftc_auth_user',
+            'pass_option'            => 'ftc_auth_pass',
+            'enti_option'            => 'ftc_auth_enti_id',
+            'token_value_option'     => null,
+            'token_exp_option'       => null,
+            'user_value'             => null,
+            'pass_value'             => null,
+            'enti_value'             => null,
+            'get_option_callback'    => null,
+            'update_option_callback' => null,
+        );
+
+        $filtered = apply_filters( 'ftc_auth_token_option_keys', $defaults, $env_key, $args, $client );
+
+        if ( ! is_array( $filtered ) ) {
+            $filtered = array();
+        }
+
+        return array_merge( $defaults, $filtered );
+    }
+
+    /**
+     * Retrieve stored auth value.
+     *
+     * @param string $field   Field key (user|pass|enti).
+     * @param mixed  $default Default value.
+     *
+     * @return mixed
+     */
+    protected function get_auth_value( $field, $default = '' ) {
+        $map       = $this->get_auth_storage_map( 'settings', array( 'context' => 'settings' ), null );
+        $value_key = $field . '_value';
+
+        if ( array_key_exists( $value_key, $map ) && null !== $map[ $value_key ] ) {
+            return $map[ $value_key ];
+        }
+
+        $option = isset( $map[ $field . '_option' ] ) ? $map[ $field . '_option' ] : '';
+
+        if ( empty( $option ) ) {
+            return $default;
+        }
+
+        $getter = isset( $map['get_option_callback'] ) && is_callable( $map['get_option_callback'] ) ? $map['get_option_callback'] : null;
+
+        if ( $getter ) {
+            return call_user_func( $getter, $option, $default );
+        }
+
+        return get_option( $option, $default );
+    }
+
+    /**
+     * Persist auth value.
+     *
+     * @param string $field Field key (user|pass|enti).
+     * @param mixed  $value Value to store.
+     */
+    protected function update_auth_value( $field, $value ) {
+        $map    = $this->get_auth_storage_map( 'settings', array( 'context' => 'settings' ), null );
+        $option = isset( $map[ $field . '_option' ] ) ? $map[ $field . '_option' ] : '';
+
+        $callback = isset( $map['update_option_callback'] ) && is_callable( $map['update_option_callback'] ) ? $map['update_option_callback'] : null;
+
+        if ( $callback ) {
+            call_user_func( $callback, $option, $value );
+            return;
+        }
+
+        if ( $option ) {
+            update_option( $option, $value, false );
+        }
+    }
+
+    /**
      * Default settings structure.
      *
      * @return array
@@ -106,6 +191,24 @@ class FTC_Settings {
         $clean['credentials']['retries']            = min( 5, max( 0, FTC_Utils::sanitize_int( FTC_Utils::array_get( $input, 'credentials.retries', 3 ) ) ) );
         $clean['credentials']['debug_mode']         = FTC_Utils::sanitize_checkbox( FTC_Utils::array_get( $input, 'credentials.debug_mode' ) );
 
+        $raw_user = isset( $_POST['ftc_auth_user'] ) ? FTC_Utils::sanitize_text( wp_unslash( $_POST['ftc_auth_user'] ) ) : null; // phpcs:ignore WordPress.Security.NonceVerification.Missing
+        if ( null !== $raw_user ) {
+            $this->update_auth_value( 'user', $raw_user );
+        }
+
+        $raw_pass = isset( $_POST['ftc_auth_pass'] ) ? FTC_Utils::sanitize_text( wp_unslash( $_POST['ftc_auth_pass'] ) ) : null; // phpcs:ignore WordPress.Security.NonceVerification.Missing
+        if ( null !== $raw_pass ) {
+            $this->update_auth_value( 'pass', $raw_pass );
+        }
+
+        $raw_enti = isset( $_POST['ftc_auth_enti_id'] ) ? FTC_Utils::sanitize_int( wp_unslash( $_POST['ftc_auth_enti_id'] ) ) : null; // phpcs:ignore WordPress.Security.NonceVerification.Missing
+        if ( null !== $raw_enti ) {
+            if ( $raw_enti <= 0 ) {
+                $raw_enti = 51;
+            }
+            $this->update_auth_value( 'enti', $raw_enti );
+        }
+
         FTC_Logger::instance()->info( 'settings', __( 'Settings updated.', 'ferk-topten-connector' ) );
 
         return $clean;
@@ -121,6 +224,11 @@ class FTC_Settings {
 
         $settings = get_option( self::OPTION_NAME, self::get_defaults() );
         $tabs     = $this->get_tabs();
+        $auth_credentials = array(
+            'user' => (string) $this->get_auth_value( 'user', '' ),
+            'pass' => (string) $this->get_auth_value( 'pass', '' ),
+            'enti' => (int) $this->get_auth_value( 'enti', 51 ),
+        );
 
         include FTC_PLUGIN_DIR . 'includes/admin/views/settings-page.php';
     }

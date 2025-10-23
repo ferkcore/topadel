@@ -96,6 +96,75 @@
             });
         }
 
+        var authButton = $('#ftc-test-auth');
+        var authSpinner = $('#ftc-test-auth-spinner');
+        var authMessage = $('#ftc-test-auth-result');
+
+        if (authButton.length) {
+            if (!window.fetch) {
+                authButton.on('click', function (event) {
+                    event.preventDefault();
+                    authMessage.text(ftcAdmin.messages.authError).addClass('ftc-error');
+                });
+            } else {
+                authButton.on('click', function (event) {
+                    event.preventDefault();
+                    authMessage.text(ftcAdmin.messages.authTesting).removeClass('ftc-error ftc-success');
+                    authSpinner.addClass('is-active');
+
+                    window.fetch(ftcAdmin.testAuthUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-WP-Nonce': ftcAdmin.restNonce
+                        },
+                        body: JSON.stringify({})
+                    })
+                        .then(function (response) {
+                            return response.json()
+                                .catch(function () {
+                                    return {};
+                                })
+                                .then(function (data) {
+                                    if (!response.ok) {
+                                        throw data;
+                                    }
+                                    return data;
+                                });
+                        })
+                        .then(function (data) {
+                            authSpinner.removeClass('is-active');
+                            if (data && data.ok) {
+                                var prefix = data.token_starts_with || '';
+                                var expires = parseInt(data.expires_in, 10);
+                                if (isNaN(expires)) {
+                                    expires = 0;
+                                }
+                                var message = ftcAdmin.messages.authSuccess
+                                    .replace('%1$s', prefix)
+                                    .replace('%2$d', expires);
+                                authMessage.text(message).addClass('ftc-success');
+                            } else {
+                                var errorMessage = (data && data.message) || ftcAdmin.messages.authError;
+                                authMessage.text(errorMessage).addClass('ftc-error');
+                            }
+                        })
+                        .catch(function (error) {
+                            authSpinner.removeClass('is-active');
+                            var errorMessage = ftcAdmin.messages.authError;
+                            if (error) {
+                                if (error.message) {
+                                    errorMessage = error.message;
+                                } else if (error.data && error.data.message) {
+                                    errorMessage = error.data.message;
+                                }
+                            }
+                            authMessage.text(errorMessage).addClass('ftc-error');
+                        });
+                });
+            }
+        }
+
         $('.ftc-copy-button').on('click', function (event) {
             event.preventDefault();
 
@@ -160,6 +229,29 @@
             }
 
             showError();
+        });
+
+        $('.ftc-toggle-password').on('click', function (event) {
+            event.preventDefault();
+
+            var button = $(this);
+            var targetSelector = button.data('target');
+            var input = targetSelector ? document.querySelector(targetSelector) : null;
+
+            if (!input) {
+                return;
+            }
+
+            var isPassword = input.getAttribute('type') === 'password';
+            input.setAttribute('type', isPassword ? 'text' : 'password');
+
+            button.attr('aria-pressed', isPassword ? 'true' : 'false');
+
+            var labelShow = button.data('label-show');
+            var labelHide = button.data('label-hide');
+            if (labelShow && labelHide) {
+                button.attr('aria-label', isPassword ? labelHide : labelShow);
+            }
         });
     });
 })(jQuery);

@@ -120,6 +120,18 @@ class FTC_Logger {
             $lower = strtolower( (string) $key );
             if ( is_array( $value ) ) {
                 $payload[ $key ] = $this->mask_payload( $value );
+            } elseif ( false !== strpos( $lower, 'token' ) ) {
+                if ( is_scalar( $value ) ) {
+                    $string = (string) $value;
+                    $length = strlen( $string );
+                    if ( $length <= 6 ) {
+                        $payload[ $key ] = $string;
+                    } else {
+                        $payload[ $key ] = substr( $string, 0, 6 ) . '..(' . $length . ')';
+                    }
+                } else {
+                    $payload[ $key ] = '***';
+                }
             } elseif (
                 false !== strpos( $lower, 'secret' ) ||
                 false !== strpos( $lower, 'key' ) ||

@@ -20,3 +20,14 @@
 .ftc-settings .ftc-copy-field input {
     flex: 1;
 }
+
+.ftc-settings .ftc-password-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 420px;
+}
+
+.ftc-settings .ftc-password-field input {
+    flex: 1;
+}
