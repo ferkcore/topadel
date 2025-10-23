@@ -193,8 +193,33 @@ class FTC_Gateway_Getnet extends WC_Payment_Gateway {
         }
 
         if ( $this->allowed_country ) {
-            $base_location = wc_get_base_location();
-            $country       = isset( $base_location['country'] ) ? $base_location['country'] : '';
+            $country = '';
+
+            $wc = function_exists( 'WC' ) ? WC() : null;
+
+            if ( $wc && $wc->customer ) {
+                $country = $wc->customer->get_billing_country();
+
+                if ( ! $country ) {
+                    $country = $wc->customer->get_shipping_country();
+                }
+            }
+
+            if ( ! $country && $wc && isset( $wc->session ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+                $order_id = $wc->session->get( 'order_awaiting_payment' );
+                if ( $order_id ) {
+                    $order = wc_get_order( $order_id );
+                    if ( $order ) {
+                        $country = $order->get_billing_country() ?: $order->get_shipping_country();
+                    }
+                }
+            }
+
+            if ( ! $country ) {
+                $base_location = wc_get_base_location();
+                $country       = isset( $base_location['country'] ) ? $base_location['country'] : '';
+            }
+
             if ( strtoupper( $country ) !== strtoupper( $this->allowed_country ) ) {
                 return false;
             }
