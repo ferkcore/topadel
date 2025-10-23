@@ -110,6 +110,13 @@ if ( ! isset( $tabs[ $current_tab ] ) ) {
                     <span class="spinner" id="ftc-test-spinner"></span>
                     <span id="ftc-test-result" class="ftc-test-message" aria-live="polite"></span>
                 </p>
+                <p>
+                    <button type="button" class="button button-secondary" id="ftc-test-user">
+                        <?php esc_html_e( 'Probar creación de usuario (sandbox)', 'ferk-topten-connector' ); ?>
+                    </button>
+                    <span class="spinner" id="ftc-test-user-spinner"></span>
+                    <span id="ftc-test-user-result" class="ftc-test-message" aria-live="polite"></span>
+                </p>
                 <form method="post" action="<?php echo esc_url( admin_url( 'admin-ajax.php' ) ); ?>">
                     <?php wp_nonce_field( 'ftc_export_logs' ); ?>
                     <input type="hidden" name="action" value="ftc_export_logs" />

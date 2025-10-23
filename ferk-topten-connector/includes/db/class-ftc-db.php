@@ -9,6 +9,8 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
+require_once FTC_PLUGIN_DIR . 'includes/helpers/class-ftc-utils.php';
+
 /**
  * Handles table creation.
  */

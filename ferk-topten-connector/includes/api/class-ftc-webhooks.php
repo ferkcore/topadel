@@ -58,6 +58,25 @@ class FTC_Webhooks {
                 'permission_callback' => '__return_true',
             )
         );
+
+        register_rest_route(
+            'ftc/v1',
+            '/admin/test-user',
+            array(
+                'methods'             => 'POST',
+                'callback'            => array( $this, 'handle_admin_test_user' ),
+                'permission_callback' => array( $this, 'check_admin_permission' ),
+            )
+        );
+    }
+
+    /**
+     * Permission callback for admin endpoints.
+     *
+     * @return bool
+     */
+    public function check_admin_permission() {
+        return current_user_can( 'manage_woocommerce' );
     }
 
     /**
@@ -161,6 +180,53 @@ class FTC_Webhooks {
 
         wp_safe_redirect( $redirect );
         exit;
+    }
+
+    /**
+     * Handle admin test user creation.
+     *
+     * @param WP_REST_Request $request Request.
+     *
+     * @return WP_REST_Response|WP_Error
+     */
+    public function handle_admin_test_user( WP_REST_Request $request ) {
+        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+            return new WP_Error( 'ftc_forbidden', __( 'No tienes permisos para esta acción.', 'ferk-topten-connector' ), array( 'status' => 403 ) );
+        }
+
+        $timestamp = gmdate( 'YmdHis' );
+        $random    = wp_rand( 1000, 9999 );
+        $email     = sprintf( 'ftc-sandbox+%s%s@example.com', $timestamp, $random );
+        $password  = FTC_Utils::random_password( 24 );
+
+        $payload = array(
+            'Nombre'     => 'Sandbox',
+            'Apellido'   => 'Test',
+            'Correo'     => $email,
+            'Clave'      => $password,
+            'Enti_Id'    => apply_filters( 'ftc_topten_entity_id', FTC_Utils::FTCTOPTEN_ENTITY_ID ),
+            'ExternalId' => $email,
+        );
+
+        try {
+            $client = FTC_Plugin::instance()->client();
+            $id     = (int) $client->create_user_newregister( $payload );
+
+            if ( $id <= 0 ) {
+                throw new Exception( 'TopTen NewRegister retornó 0 (error creando usuario)' );
+            }
+        } catch ( Exception $e ) {
+            FTC_Logger::instance()->error( 'tools', 'test_user_failed: ' . $e->getMessage() );
+
+            return new WP_Error( 'ftc_test_user_failed', $e->getMessage(), array( 'status' => 500 ) );
+        }
+
+        return rest_ensure_response(
+            array(
+                'id'    => $id,
+                'email' => $email,
+            )
+        );
     }
 
     /**

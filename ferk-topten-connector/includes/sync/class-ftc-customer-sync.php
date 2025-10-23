@@ -11,11 +11,36 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 require_once FTC_PLUGIN_DIR . 'includes/helpers/class-ftc-logger.php';
 require_once FTC_PLUGIN_DIR . 'includes/helpers/class-ftc-utils.php';
+require_once FTC_PLUGIN_DIR . 'includes/db/class-ftc-db.php';
 
 /**
  * Sync WooCommerce customers with TopTen.
  */
 class FTC_Customer_Sync {
+    const FTCTOPTEN_ENTITY_ID = 51;
+
+    /**
+     * Database helper.
+     *
+     * @var FTC_DB
+     */
+    protected $db;
+
+    /**
+     * Constructor.
+     *
+     * @param FTC_DB|null $db DB helper.
+     */
+    public function __construct( $db = null ) {
+        if ( $db instanceof FTC_DB ) {
+            $this->db = $db;
+        } elseif ( class_exists( 'FTC_Plugin' ) ) {
+            $this->db = FTC_Plugin::instance()->db();
+        } else {
+            $this->db = new FTC_DB();
+        }
+    }
+
     /**
      * Obtain or create TopTen user based on order.
      *
@@ -40,31 +65,18 @@ class FTC_Customer_Sync {
             return $map['external_id'];
         }
 
-        $client  = FTC_Plugin::instance()->get_client_from_order( $order );
-        $payload = array(
-            'email'          => $email,
-            'first_name'     => $order->get_billing_first_name(),
-            'last_name'      => $order->get_billing_last_name(),
-            'phone'          => $order->get_billing_phone(),
-            'billing_address' => array(
-                'address_1' => $order->get_billing_address_1(),
-                'address_2' => $order->get_billing_address_2(),
-                'city'      => $order->get_billing_city(),
-                'state'     => $order->get_billing_state(),
-                'postcode'  => $order->get_billing_postcode(),
-                'country'   => $order->get_billing_country(),
-            ),
-        );
+        $doc_type = apply_filters( 'ftc_topten_document_type', (string) $order->get_meta( '_billing_document_type' ) );
+        $doc_num  = apply_filters( 'ftc_topten_document_number', (string) $order->get_meta( '_billing_document' ) );
 
-        $payload = apply_filters( 'ftc_create_user_payload', $payload, $order );
+        $birth     = (string) $order->get_meta( '_billing_birthdate' );
+        $birth_iso = FTC_Utils::normalize_datetime_nullable( $birth );
 
-        $response = $client->create_user( $payload );
-        if ( empty( $response['id'] ) ) {
-            throw new Exception( __( 'Respuesta inválida al crear usuario TopTen.', 'ferk-topten-connector' ) );
+        $external_id = $wc_user_id > 0 ? (string) $wc_user_id : (string) $email;
+        $password    = FTC_Utils::random_password( 24 );
+
+        if ( ! is_email( $email ) ) {
+            throw new Exception( 'Correo inválido para NewRegister' );
         }
-
-        $external_id = $response['id'];
-        $data_json   = wp_json_encode( $response );
 
         if ( $db ) {
             $db->upsert_map(
@@ -78,28 +90,33 @@ class FTC_Customer_Sync {
             );
         }
 
-        $order->update_meta_data( '_ftc_topten_user_id', $external_id );
-        $order->save();
+        $client = FTC_Plugin::instance()->client();
+        $id     = (int) $client->create_user_newregister( $payload );
 
-        FTC_Logger::instance()->info( 'customer_sync', __( 'Usuario TopTen vinculado.', 'ferk-topten-connector' ), array( 'order_id' => $order->get_id(), 'topten_user_id' => $external_id ) );
-
-        return $external_id;
-}
-
-    /**
-     * Generate guest identifier using email hash.
-     *
-     * @param string $email Email.
-     *
-     * @return int
-     */
-    protected function get_guest_identifier( $email ) {
-        if ( empty( $email ) ) {
-            return 0;
+        if ( $id <= 0 ) {
+            throw new Exception( 'TopTen NewRegister retornó 0 (error creando usuario)' );
         }
 
-        $crc = sprintf( '%u', crc32( strtolower( $email ) ) );
+        $hash = FTC_Utils::hash_identity( $email );
+        $this->db->upsert_map(
+            'customer',
+            $wc_user_id > 0 ? $wc_user_id : 0,
+            (string) $id,
+            $hash,
+            array(
+                'email'       => $email,
+                'first'       => $first,
+                'last'        => $last,
+                'phone'       => $phone,
+                'ddi'         => $ddi,
+                'doc'         => $doc_num,
+                'doc_type'    => $doc_type,
+                'birth'       => $birth_iso,
+                'externalId'  => $external_id,
+                'created_from'=> 'NewRegister',
+            )
+        );
 
-        return (int) $crc;
+        return (string) $id;
     }
 }

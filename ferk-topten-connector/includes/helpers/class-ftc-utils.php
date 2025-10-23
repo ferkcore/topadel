@@ -14,6 +14,11 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class FTC_Utils {
     /**
+     * Default TopTen entity id.
+     */
+    const FTCTOPTEN_ENTITY_ID = 51;
+
+    /**
      * Generate a UUID v4 string.
      *
      * @return string

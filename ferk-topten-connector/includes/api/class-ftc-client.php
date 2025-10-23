@@ -52,31 +52,25 @@ class FTC_Client {
         $method = strtoupper( $method );
         $path   = apply_filters( 'ftc_api_path', $path, $method, $args, $this );
 
-        $base = $this->get_base_url();
+        $base = $this->base_url( $args );
         if ( empty( $base ) ) {
             throw new Exception( __( 'Base URL no configurada.', 'ferk-topten-connector' ) );
         }
 
-        $url = trailingslashit( untrailingslashit( $base ) ) . ltrim( $path, '/' );
+        $url = rtrim( $base, '/' ) . '/' . ltrim( $path, '/' );
 
-        $headers = array(
-            'Content-Type' => 'application/json',
-        );
-
-        if ( ! empty( $this->config['api_key'] ) ) {
-            $headers['Authorization'] = 'Bearer ' . $this->config['api_key'];
-        }
-
+        $extra_headers = isset( $args['headers'] ) && is_array( $args['headers'] ) ? $args['headers'] : array();
         if ( ! empty( $args['idempotency_key'] ) ) {
-            $headers['Idempotency-Key'] = $args['idempotency_key'];
+            $extra_headers['Idempotency-Key'] = $args['idempotency_key'];
         }
 
-        $body    = isset( $args['body'] ) ? wp_json_encode( $args['body'] ) : null;
-        $timeout = ! empty( $this->config['timeout'] ) ? (int) $this->config['timeout'] : 30;
-        $retries = ! empty( $this->config['retries'] ) ? (int) $this->config['retries'] : 3;
+        $headers = $this->build_headers( $extra_headers, $args );
+
+        $body    = isset( $args['body'] ) ? wp_json_encode( $args['body'], JSON_UNESCAPED_UNICODE ) : null;
+        $timeout = $this->timeout( $args );
+        $retries = $this->retries( $args );
 
         $logger = FTC_Logger::instance();
-
         $backoff_schedule = array( 60, 300, 900 );
 
         for ( $attempt = 0; $attempt <= $retries; $attempt++ ) {
@@ -132,6 +126,93 @@ class FTC_Client {
      */
     public function health() {
         return $this->request( 'GET', self::PATH_HEALTH );
+    }
+
+    /**
+     * Create or retrieve TopTen user via NewRegister.
+     *
+     * @param array $payload Payload.
+     * @param array $args    Arguments.
+     *
+     * @return int
+     * @throws Exception On unexpected response or transport error.
+     */
+    public function create_user_newregister( array $payload, array $args = array() ) : int {
+        $path = self::PATH_NEWREGISTER;
+        $base = $this->base_url( $args );
+
+        if ( empty( $base ) ) {
+            throw new Exception( __( 'Base URL no configurada.', 'ferk-topten-connector' ) );
+        }
+
+        $headers = $this->build_headers(
+            array(
+                'Content-Type' => 'application/json',
+            ),
+            $args
+        );
+
+        $body     = wp_json_encode( $payload, JSON_UNESCAPED_UNICODE );
+        $timeout  = $this->timeout( $args );
+        $max_tries = 2;
+        $attempt  = 0;
+
+        do {
+            $response = wp_remote_post(
+                rtrim( $base, '/' ) . $path,
+                array(
+                    'headers' => $headers,
+                    'timeout' => $timeout,
+                    'body'    => $body,
+                )
+            );
+
+            if ( is_wp_error( $response ) ) {
+                if ( $attempt >= $max_tries - 1 ) {
+                    throw new Exception( 'TopTen create_user transport error: ' . $response->get_error_message() );
+                }
+
+                $attempt++;
+                sleep( 1 );
+                continue;
+            }
+
+            $code = (int) wp_remote_retrieve_response_code( $response );
+            $raw  = wp_remote_retrieve_body( $response );
+
+            if ( $code >= 500 && $attempt < $max_tries - 1 ) {
+                $attempt++;
+                sleep( 1 );
+                continue;
+            }
+
+            if ( $code < 200 || $code >= 300 ) {
+                throw new Exception( sprintf( 'TopTen create_user unexpected HTTP %1$s: %2$s', $code, $raw ) );
+            }
+
+            $user_id = null;
+            $trimmed = is_string( $raw ) ? trim( $raw ) : '';
+            if ( '' !== $trimmed && is_numeric( $trimmed ) ) {
+                $user_id = (int) $trimmed;
+            } else {
+                $decoded = json_decode( $raw, true );
+                if ( is_int( $decoded ) ) {
+                    $user_id = $decoded;
+                } elseif ( is_numeric( $decoded ) ) {
+                    $user_id = (int) $decoded;
+                } elseif ( is_array( $decoded ) && isset( $decoded['value'] ) && is_numeric( $decoded['value'] ) ) {
+                    $user_id = (int) $decoded['value'];
+                }
+            }
+
+            if ( ! is_int( $user_id ) ) {
+                throw new Exception( 'TopTen create_user unexpected response: ' . $raw );
+            }
+
+            return $user_id;
+        } while ( $attempt < $max_tries );
+
+        throw new Exception( __( 'No fue posible crear el usuario.', 'ferk-topten-connector' ) );
     }
 
     /**
@@ -249,18 +330,108 @@ class FTC_Client {
     }
 
     /**
+     * Build HTTP headers.
+     *
+     * @param array $additional Additional headers.
+     * @param array $args       Arguments.
+     *
+     * @return array
+     */
+    protected function build_headers( array $additional = array(), array $args = array() ) {
+        $headers = array_merge(
+            array(
+                'Accept' => 'application/json',
+            ),
+            $additional
+        );
+
+        $api_key = '';
+        if ( isset( $args['api_key'] ) && $args['api_key'] ) {
+            $api_key = (string) $args['api_key'];
+        } elseif ( ! empty( $this->config['api_key'] ) ) {
+            $api_key = (string) $this->config['api_key'];
+        }
+
+        if ( $api_key && empty( $headers['Authorization'] ) ) {
+            $headers['Authorization'] = 'Bearer ' . $api_key;
+        }
+
+        return $headers;
+    }
+
+    /**
+     * Resolve timeout.
+     *
+     * @param array $args Arguments.
+     *
+     * @return int
+     */
+    protected function timeout( $args = array() ) {
+        if ( isset( $args['timeout'] ) ) {
+            return max( 5, (int) $args['timeout'] );
+        }
+
+        if ( ! empty( $this->config['timeout'] ) ) {
+            return max( 5, (int) $this->config['timeout'] );
+        }
+
+        return 30;
+    }
+
+    /**
+     * Resolve retries.
+     *
+     * @param array $args Arguments.
+     *
+     * @return int
+     */
+    protected function retries( $args = array() ) {
+        if ( isset( $args['retries'] ) ) {
+            return min( 5, max( 0, (int) $args['retries'] ) );
+        }
+
+        if ( isset( $this->config['retries'] ) ) {
+            return min( 5, max( 0, (int) $this->config['retries'] ) );
+        }
+
+        return 3;
+    }
+
+    /**
      * Get base URL using sandbox flag.
      *
      * @return string
      */
     protected function get_base_url() {
-        $sandbox = ( 'yes' === FTC_Utils::array_get( $this->config, 'sandbox', 'yes' ) );
+        return $this->base_url();
+    }
 
-        if ( $sandbox ) {
-            return FTC_Utils::array_get( $this->config, 'base_url_sandbox', '' );
+    /**
+     * Resolve base URL considering overrides.
+     *
+     * @param array $args Arguments.
+     *
+     * @return string
+     */
+    protected function base_url( $args = array() ) {
+        if ( isset( $args['base_url'] ) && $args['base_url'] ) {
+            return untrailingslashit( $args['base_url'] );
         }
 
-        return FTC_Utils::array_get( $this->config, 'base_url_production', '' );
+        $sandbox = null;
+        if ( isset( $args['sandbox'] ) ) {
+            $sandbox = $args['sandbox'];
+        } else {
+            $sandbox = FTC_Utils::array_get( $this->config, 'sandbox', 'yes' );
+        }
+
+        $sandbox_enabled = in_array( $sandbox, array( true, 'yes', 1, '1' ), true );
+
+        if ( $sandbox_enabled ) {
+            return untrailingslashit( FTC_Utils::array_get( $this->config, 'base_url_sandbox', '' ) );
+        }
+
+        return untrailingslashit( FTC_Utils::array_get( $this->config, 'base_url_production', '' ) );
     }
 
     /**
