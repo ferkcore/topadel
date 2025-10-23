@@ -34,11 +34,6 @@ class FTC_Gateway_Getnet extends WC_Payment_Gateway {
         $this->enabled        = $this->get_option( 'enabled', 'no' );
         $this->title          = $this->get_option( 'title', __( 'GetNet (TopTen)', 'ferk-topten-connector' ) );
         $this->description    = $this->get_option( 'description', __( 'Paga a través de GetNet con la integración TopTen.', 'ferk-topten-connector' ) );
-        $this->sandbox_mode   = $this->get_option( 'sandbox_mode', 'default' );
-        $this->api_key        = $this->get_option( 'api_key', '' );
-        $this->webhook_secret = $this->get_option( 'webhook_secret', '' );
-        $this->base_url_sandbox = $this->get_option( 'base_url_sandbox', '' );
-        $this->base_url_production = $this->get_option( 'base_url_production', '' );
         $this->allowed_country = $this->get_option( 'allowed_country', '' );
         $this->allowed_currency = $this->get_option( 'allowed_currency', '' );
 
@@ -67,37 +62,6 @@ class FTC_Gateway_Getnet extends WC_Payment_Gateway {
                 'type'        => 'textarea',
                 'description' => __( 'Texto que se muestra durante el checkout.', 'ferk-topten-connector' ),
                 'default'     => __( 'Serás redirigido a la plataforma GetNet para completar tu pago.', 'ferk-topten-connector' ),
-            ),
-            'sandbox_mode' => array(
-                'title'       => __( 'Modo Sandbox', 'ferk-topten-connector' ),
-                'type'        => 'select',
-                'description' => __( 'Define si este método debe usar el entorno sandbox.', 'ferk-topten-connector' ),
-                'default'     => 'default',
-                'options'     => array(
-                    'default' => __( 'Usar configuración global', 'ferk-topten-connector' ),
-                    'yes'     => __( 'Forzar Sandbox', 'ferk-topten-connector' ),
-                    'no'      => __( 'Forzar Producción', 'ferk-topten-connector' ),
-                ),
-            ),
-            'base_url_sandbox' => array(
-                'title'       => __( 'Base URL Sandbox', 'ferk-topten-connector' ),
-                'type'        => 'text',
-                'description' => __( 'Sobrescribe la URL base sandbox.', 'ferk-topten-connector' ),
-            ),
-            'base_url_production' => array(
-                'title'       => __( 'Base URL Producción', 'ferk-topten-connector' ),
-                'type'        => 'text',
-                'description' => __( 'Sobrescribe la URL base producción.', 'ferk-topten-connector' ),
-            ),
-            'api_key' => array(
-                'title'       => __( 'API Key', 'ferk-topten-connector' ),
-                'type'        => 'password',
-                'description' => __( 'Opcional: sobrescribe la API Key global.', 'ferk-topten-connector' ),
-            ),
-            'webhook_secret' => array(
-                'title'       => __( 'Webhook Secret', 'ferk-topten-connector' ),
-                'type'        => 'password',
-                'description' => __( 'Opcional: sobrescribe el Webhook Secret global.', 'ferk-topten-connector' ),
             ),
             'callback_url' => array(
                 'title'       => __( 'Callback URL (opcional)', 'ferk-topten-connector' ),
@@ -402,25 +366,31 @@ class FTC_Gateway_Getnet extends WC_Payment_Gateway {
      * @return array
      */
     public function get_gateway_config() {
-        $defaults = class_exists( 'FTC_Settings' ) ? FTC_Settings::get_defaults()['credentials'] : array();
-        $settings = get_option( FTC_Utils::option_name(), array( 'credentials' => $defaults ) );
-        $credentials = isset( $settings['credentials'] ) ? $settings['credentials'] : $defaults;
-
-        $sandbox = $credentials['sandbox'];
-        if ( 'yes' === $this->sandbox_mode || 'no' === $this->sandbox_mode ) {
-            $sandbox = ( 'yes' === $this->sandbox_mode ) ? 'yes' : 'no';
+        $defaults = array();
+        if ( class_exists( 'FTC_Settings' ) ) {
+            $settings_defaults = FTC_Settings::get_defaults();
+            if ( isset( $settings_defaults['credentials'] ) && is_array( $settings_defaults['credentials'] ) ) {
+                $defaults = $settings_defaults['credentials'];
+            }
         }
 
-        $config = array(
-            'sandbox'            => $sandbox,
-            'base_url_sandbox'   => $this->base_url_sandbox ? $this->base_url_sandbox : $credentials['base_url_sandbox'],
-            'base_url_production'=> $this->base_url_production ? $this->base_url_production : $credentials['base_url_production'],
-            'api_key'            => $this->api_key ? $this->api_key : $credentials['api_key'],
-            'webhook_secret'     => $this->webhook_secret ? $this->webhook_secret : $credentials['webhook_secret'],
-            'timeout'            => $credentials['timeout'],
-            'retries'            => $credentials['retries'],
-        );
+        $stored_settings = get_option( FTC_Utils::option_name(), array() );
+        $credentials      = array();
 
-        return $config;
+        if ( isset( $stored_settings['credentials'] ) && is_array( $stored_settings['credentials'] ) ) {
+            $credentials = $stored_settings['credentials'];
+        }
+
+        $credentials = wp_parse_args( $credentials, $defaults );
+
+        return array(
+            'sandbox'             => isset( $credentials['sandbox'] ) ? $credentials['sandbox'] : 'yes',
+            'base_url_sandbox'    => isset( $credentials['base_url_sandbox'] ) ? $credentials['base_url_sandbox'] : '',
+            'base_url_production' => isset( $credentials['base_url_production'] ) ? $credentials['base_url_production'] : '',
+            'api_key'             => isset( $credentials['api_key'] ) ? $credentials['api_key'] : '',
+            'webhook_secret'      => isset( $credentials['webhook_secret'] ) ? $credentials['webhook_secret'] : '',
+            'timeout'             => isset( $credentials['timeout'] ) ? $credentials['timeout'] : 30,
+            'retries'             => isset( $credentials['retries'] ) ? $credentials['retries'] : 3,
+        );
     }
 }
