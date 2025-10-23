@@ -65,14 +65,41 @@ class FTC_Customer_Sync {
             return $map['external_id'];
         }
 
-        $first    = (string) $order->get_billing_first_name();
-        $last     = (string) $order->get_billing_last_name();
+        $first    = trim( (string) $order->get_billing_first_name() );
+        $last     = trim( (string) $order->get_billing_last_name() );
         $phone    = (string) $order->get_billing_phone();
         $doc_type = apply_filters( 'ftc_topten_document_type', (string) $order->get_meta( '_billing_document_type' ) );
         $doc_num  = apply_filters( 'ftc_topten_document_number', (string) $order->get_meta( '_billing_document' ) );
 
         $birth     = (string) $order->get_meta( '_billing_birthdate' );
         $birth_iso = FTC_Utils::normalize_datetime_nullable( $birth );
+
+        $country_code = strtoupper( trim( (string) $order->get_billing_country() ) );
+        $state_code   = trim( (string) $order->get_billing_state() );
+        $city         = (string) wc_clean( $order->get_billing_city() );
+        $postcode     = (string) wc_clean( $order->get_billing_postcode() );
+        $address_1    = (string) wc_clean( $order->get_billing_address_1() );
+        $address_2    = (string) wc_clean( $order->get_billing_address_2() );
+        $address      = trim( preg_replace( '/\s+/', ' ', trim( $address_1 . ' ' . $address_2 ) ) );
+
+        $country_label = $country_code;
+        $state_label   = $state_code;
+
+        if ( function_exists( 'WC' ) ) {
+            $countries_instance = WC()->countries;
+            if ( $countries_instance ) {
+                if ( $country_code && isset( $countries_instance->countries[ $country_code ] ) ) {
+                    $country_label = (string) $countries_instance->countries[ $country_code ];
+                }
+
+                if ( $country_code && $state_code ) {
+                    $states = $countries_instance->get_states( $country_code );
+                    if ( is_array( $states ) && isset( $states[ $state_code ] ) ) {
+                        $state_label = (string) $states[ $state_code ];
+                    }
+                }
+            }
+        }
 
         $ddi_meta = (string) $order->get_meta( '_billing_phone_ddi' );
         $ddi      = apply_filters( 'ftc_topten_phone_ddi', $ddi_meta, $order );
@@ -96,6 +123,15 @@ class FTC_Customer_Sync {
             'doc'        => $doc_num,
             'doc_type'   => $doc_type,
             'birth'      => $birth_iso,
+            'country'    => $country_code,
+            'country_label' => $country_label,
+            'state'      => $state_code,
+            'state_label'=> $state_label,
+            'city'       => $city,
+            'postcode'   => $postcode,
+            'address_1'  => $address_1,
+            'address_2'  => $address_2,
+            'address'    => $address,
             'externalId' => $external_id,
         );
 
@@ -123,6 +159,11 @@ class FTC_Customer_Sync {
             'Telefono'       => $clean_phone ? $clean_phone : null,
             'TelefonoDDI'    => $ddi ? $ddi : null,
             'FechaNacimiento'=> $birth_iso ? $birth_iso : null,
+            'Pais'           => $country_label ? $country_label : null,
+            'Departamento'   => $state_label ? $state_label : null,
+            'Ciudad'         => $city ? $city : null,
+            'CodigoPostal'   => $postcode ? $postcode : null,
+            'Direccion'      => $address ? $address : null,
         );
 
         $payload = apply_filters( 'ftc_topten_newregister_payload', $payload, $order, $customer_data );
