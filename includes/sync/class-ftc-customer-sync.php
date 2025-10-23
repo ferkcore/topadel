@@ -108,7 +108,15 @@ class FTC_Customer_Sync {
         $clean_phone = preg_replace( '/\D+/', '', $phone );
 
         $external_id = $wc_user_id > 0 ? (string) $wc_user_id : (string) $email;
-        $password    = FTC_Utils::random_password( 24 );
+        $password    = FTC_Utils::random_password(
+            10,
+            array(
+                'require_uppercase' => true,
+                'require_lowercase' => true,
+                'require_number'    => true,
+                'require_special'   => true,
+            )
+        );
 
         if ( ! is_email( $email ) ) {
             throw new Exception( 'Correo inválido para NewRegister' );

@@ -21,12 +21,47 @@ class FTC_Utils {
     /**
      * Generate a cryptographically secure password.
      *
-     * @param int $length Desired length.
+     * @param int   $length  Desired length.
+     * @param array $options Generation options.
      *
      * @return string
      */
-    public static function random_password( $length = 12 ) {
-        $length = max( 1, (int) $length );
+    public static function random_password( $length = 12, $options = array() ) {
+        $length  = max( 1, (int) $length );
+        $options = wp_parse_args(
+            is_array( $options ) ? $options : array(),
+            array(
+                'require_uppercase' => false,
+                'require_lowercase' => false,
+                'require_number'    => false,
+                'require_special'   => false,
+                'max_attempts'      => 20,
+            )
+        );
+
+        $max_attempts = max( 1, (int) $options['max_attempts'] );
+
+        for ( $attempt = 0; $attempt < $max_attempts; $attempt++ ) {
+            $password = wp_generate_password( $length, true, true );
+
+            if ( $options['require_uppercase'] && ! preg_match( '/[A-Z]/', $password ) ) {
+                continue;
+            }
+
+            if ( $options['require_lowercase'] && ! preg_match( '/[a-z]/', $password ) ) {
+                continue;
+            }
+
+            if ( $options['require_number'] && ! preg_match( '/\d/', $password ) ) {
+                continue;
+            }
+
+            if ( $options['require_special'] && ! preg_match( '/[^\da-zA-Z]/', $password ) ) {
+                continue;
+            }
+
+            return $password;
+        }
 
         return wp_generate_password( $length, true, true );
     }
