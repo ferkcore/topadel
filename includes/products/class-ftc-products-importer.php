@@ -307,20 +307,22 @@ class FTC_Products_Importer {
      * Fetch TopTen products page.
      *
      * @param int         $page      Page number.
-     * @param string|null $keyword   Optional keyword.
+     * @param string|null $keyword   Optional keyword (currently unused to ensure full catalog fetch).
      * @param int         $entity_id Entity identifier.
      *
      * @return array
      */
     public function fetch_page( int $page, ?string $keyword, int $entity_id ) : array {
         $payload = array(
-            'Enti_Id' => $entity_id,
-            'Pagina'  => max( 1, $page ),
+            'Enti_Id'    => $entity_id,
+            'Pagina'     => max( 1, $page ),
+            'Publicado'  => true,
+            'Terminos'   => array(),
+            'Categorias' => array(),
+            'Marcas'     => array(),
         );
 
-        if ( $keyword ) {
-            $payload['PalabraClave'] = $keyword;
-        }
+        // No PalabraClave filter to ensure all products are retrieved and matched locally by SKU.
 
         $response = $this->get_client()->get_products_detail( $payload );
 
