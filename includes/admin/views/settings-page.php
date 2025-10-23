@@ -124,6 +124,70 @@ if ( ! isset( $tabs[ $current_tab ] ) ) {
                 </table>
             <?php elseif ( 'sync' === $current_tab ) : ?>
                 <p><?php esc_html_e( 'Pronto podrás gestionar opciones de sincronización adicionales.', 'ferk-topten-connector' ); ?></p>
+            <?php elseif ( 'products' === $current_tab ) : ?>
+                <?php wp_nonce_field( 'ftc_products_map', 'ftc_products_map_nonce' ); ?>
+                <div class="ftc-products-tab">
+                    <p><?php esc_html_e( 'Consulta TopTen para encontrar coincidencias por SKU y guardar el metadato id_topten en productos o variaciones.', 'ferk-topten-connector' ); ?></p>
+                    <div class="ftc-products-controls">
+                        <p>
+                            <label>
+                                <input type="checkbox" id="ftc-products-apply" />
+                                <?php esc_html_e( 'Aplicar cambios (escribir id_topten)', 'ferk-topten-connector' ); ?>
+                            </label>
+                        </p>
+                        <p>
+                            <label>
+                                <input type="checkbox" id="ftc-products-overwrite" />
+                                <?php esc_html_e( 'Sobrescribir si ya existe id_topten', 'ferk-topten-connector' ); ?>
+                            </label>
+                        </p>
+                        <p>
+                            <label for="ftc-products-strategy"><?php esc_html_e( 'Estrategia de comparación de SKU', 'ferk-topten-connector' ); ?></label><br />
+                            <select id="ftc-products-strategy">
+                                <option value="case_insensitive_trim" selected><?php esc_html_e( 'Insensible a mayúsculas + trim', 'ferk-topten-connector' ); ?></option>
+                                <option value="exact"><?php esc_html_e( 'Exacta', 'ferk-topten-connector' ); ?></option>
+                            </select>
+                        </p>
+                        <p>
+                            <label for="ftc-products-keyword"><?php esc_html_e( 'PalabraClave (opcional)', 'ferk-topten-connector' ); ?></label><br />
+                            <input type="text" id="ftc-products-keyword" class="regular-text" />
+                        </p>
+                        <p>
+                            <label for="ftc-products-pages"><?php esc_html_e( 'Páginas a procesar', 'ferk-topten-connector' ); ?></label><br />
+                            <input type="number" id="ftc-products-pages" class="small-text" value="10" min="0" max="100" />
+                            <span class="description"><?php esc_html_e( 'Usa 0 para iterar hasta agotar resultados (límite de 100 páginas).', 'ferk-topten-connector' ); ?></span>
+                        </p>
+                        <p class="description"><?php esc_html_e( 'Se utilizarán el Enti_Id y credenciales configuradas en la pestaña Credenciales.', 'ferk-topten-connector' ); ?></p>
+                    </div>
+                    <div class="ftc-products-actions">
+                        <button type="button" class="button button-secondary" id="ftc-products-map-run"><?php esc_html_e( 'Traer y mapear por SKU', 'ferk-topten-connector' ); ?></button>
+                        <span class="spinner" id="ftc-products-spinner"></span>
+                        <button type="button" class="button button-primary" id="ftc-products-map-apply" disabled><?php esc_html_e( 'Aplicar cambios', 'ferk-topten-connector' ); ?></button>
+                        <button type="button" class="button" id="ftc-products-export" disabled><?php esc_html_e( 'Exportar CSV de mapeo', 'ferk-topten-connector' ); ?></button>
+                    </div>
+                    <div id="ftc-products-summary" class="ftc-products-summary" aria-live="polite"></div>
+                    <div id="ftc-products-truncated" class="notice notice-warning" style="display:none;">
+                        <p><?php printf( esc_html__( 'El resultado fue truncado a %d filas. Ajusta la búsqueda o exporta múltiples veces si es necesario.', 'ferk-topten-connector' ), (int) FTC_Products_Importer::MAX_RESPONSE_ROWS ); ?></p>
+                    </div>
+                    <div class="ftc-products-table-wrapper">
+                        <table class="widefat striped" id="ftc-products-results">
+                            <thead>
+                                <tr>
+                                    <th><?php esc_html_e( 'WC Product ID', 'ferk-topten-connector' ); ?></th>
+                                    <th><?php esc_html_e( 'SKU Woo', 'ferk-topten-connector' ); ?></th>
+                                    <th><?php esc_html_e( 'id_topten encontrado', 'ferk-topten-connector' ); ?></th>
+                                    <th><?php esc_html_e( 'Fuente', 'ferk-topten-connector' ); ?></th>
+                                    <th><?php esc_html_e( 'Acción', 'ferk-topten-connector' ); ?></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="5"><?php esc_html_e( 'Aún no hay resultados.', 'ferk-topten-connector' ); ?></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             <?php elseif ( 'tools' === $current_tab ) : ?>
                 <p><?php esc_html_e( 'Utiliza estas herramientas para diagnosticar el conector.', 'ferk-topten-connector' ); ?></p>
                 <?php

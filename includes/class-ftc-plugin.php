@@ -23,6 +23,8 @@ require_once FTC_PLUGIN_DIR . 'includes/sync/class-ftc-cart-sync.php';
 require_once FTC_PLUGIN_DIR . 'includes/order/class-ftc-jsonpedido.php';
 require_once FTC_PLUGIN_DIR . 'includes/order/class-ftc-order-meta.php';
 require_once FTC_PLUGIN_DIR . 'includes/order/class-ftc-order-status.php';
+require_once FTC_PLUGIN_DIR . 'includes/products/class-ftc-products-importer.php';
+require_once FTC_PLUGIN_DIR . 'includes/products/class-ftc-product-meta.php';
 
 /**
  * Main plugin class.
@@ -64,6 +66,13 @@ class FTC_Plugin {
     protected $order_meta;
 
     /**
+     * Product meta handler.
+     *
+     * @var FTC_Product_Meta
+     */
+    protected $product_meta;
+
+    /**
      * Gateway instance cache.
      *
      * @var FTC_Gateway_Getnet|null
@@ -83,6 +92,13 @@ class FTC_Plugin {
      * @var FTC_Cart_Sync|null
      */
     protected $cart_sync_instance = null;
+
+    /**
+     * Products importer instance.
+     *
+     * @var FTC_Products_Importer|null
+     */
+    protected $products_importer_instance = null;
 
     /**
      * Missing dependencies.
@@ -158,6 +174,9 @@ class FTC_Plugin {
 
         $this->order_meta = new FTC_Order_Meta();
         $this->order_meta->hooks();
+
+        $this->product_meta = new FTC_Product_Meta();
+        $this->product_meta->hooks();
 
         add_filter( 'woocommerce_payment_gateways', array( $this, 'register_payment_gateway' ) );
         add_action( 'admin_init', array( $this, 'maybe_seed_settings' ) );
@@ -422,6 +441,19 @@ class FTC_Plugin {
         }
 
         return $this->cart_sync_instance;
+    }
+
+    /**
+     * Get products importer instance.
+     *
+     * @return FTC_Products_Importer
+     */
+    public function products_importer() {
+        if ( null === $this->products_importer_instance ) {
+            $this->products_importer_instance = new FTC_Products_Importer();
+        }
+
+        return $this->products_importer_instance;
     }
 
     /**
