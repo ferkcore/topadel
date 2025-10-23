@@ -10,6 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 require_once FTC_PLUGIN_DIR . 'includes/db/class-ftc-db.php';
+require_once FTC_PLUGIN_DIR . 'includes/helpers/class-ftc-utils.php';
 require_once FTC_PLUGIN_DIR . 'includes/helpers/class-ftc-logger.php';
 
 /**
