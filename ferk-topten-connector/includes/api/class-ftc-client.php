@@ -16,11 +16,12 @@ require_once FTC_PLUGIN_DIR . 'includes/helpers/class-ftc-logger.php';
  * HTTP client for TopTen API.
  */
 class FTC_Client {
-    const PATH_USERS             = '/users';
-    const PATH_CARTS             = '/carts';
-    const PATH_PAYMENTS          = '/payments';
-    const PATH_HEALTH            = '/health';
-    const PATH_ADD_CART_EXTERNAL = '/api/Cart/AddCartProductExternal';
+    const PATH_USERS                 = '/users';
+    const PATH_CARTS                 = '/carts';
+    const PATH_PAYMENTS              = '/payments';
+    const PATH_HEALTH                = '/health';
+    const PATH_ADD_CART_EXTERNAL     = '/api/Cart/AddCartProductExternal';
+    const PATH_PAYMENT_PLACETOPAY    = '/api/CommonWeb/PaymentPlacetopay';
 
     /**
      * Configuration array.
@@ -298,6 +299,60 @@ class FTC_Client {
     }
 
     /**
+     * Create payment session using PaymentPlacetopay endpoint.
+     *
+     * @param array $payload Payload to send.
+     * @param array $args    Optional arguments.
+     *
+     * @return array
+     * @throws \Exception When response is invalid or transport fails.
+     */
+    public function create_payment_placetopay( array $payload, array $args = array() ) : array {
+        $path    = self::PATH_PAYMENT_PLACETOPAY;
+        $headers = $this->build_headers(
+            array(
+                'Content-Type' => 'application/json',
+            ),
+            $args
+        );
+
+        $body     = wp_json_encode( $payload, JSON_UNESCAPED_UNICODE );
+        $response = wp_remote_post(
+            $this->base_url( $args ) . $path,
+            array(
+                'headers' => $headers,
+                'timeout' => $this->timeout( $args ),
+                'body'    => $body,
+            )
+        );
+
+        if ( is_wp_error( $response ) ) {
+            throw new \Exception( 'TopTen create_payment transport error: ' . $response->get_error_message() );
+        }
+
+        $raw     = wp_remote_retrieve_body( $response );
+        $decoded = json_decode( $raw, true );
+
+        if ( ! is_array( $decoded ) ) {
+            throw new \Exception( 'TopTen create_payment unexpected response: ' . $raw );
+        }
+
+        $success = isset( $decoded['SuccessInfo']['Success'] ) ? (bool) $decoded['SuccessInfo']['Success'] : false;
+        if ( ! $success ) {
+            $msg = isset( $decoded['SuccessInfo']['Message'] ) ? (string) $decoded['SuccessInfo']['Message'] : 'Unknown error';
+            throw new \Exception( 'TopTen create_payment failed: ' . $msg );
+        }
+
+        return array(
+            'token'          => (string) ( $decoded['Token'] ?? '' ),
+            'url_external'   => (string) ( $decoded['UrlExternal'] ?? '' ),
+            'expiration_utc' => isset( $decoded['ExpirationUTC'] ) ? (int) $decoded['ExpirationUTC'] : 0,
+            'id_adquiria'    => isset( $decoded['IdAdquiria'] ) ? (int) $decoded['IdAdquiria'] : 0,
+            'raw'            => $decoded,
+        );
+    }
+
+    /**
      * Create payment.
      *
      * @param array $payload Payload.
@@ -329,130 +384,30 @@ class FTC_Client {
         return $this->request( 'GET', $path );
     }
 
-    /**
-     * Build HTTP headers.
-     *
-     * @param array $additional Additional headers.
-     * @param array $args       Arguments.
-     *
-     * @return array
-     */
-    protected function build_headers( array $additional = array(), array $args = array() ) {
-        $headers = array_merge(
-            array(
-                'Accept' => 'application/json',
-            ),
-            $additional
-        );
-
-        $api_key = '';
-        if ( isset( $args['api_key'] ) && $args['api_key'] ) {
-            $api_key = (string) $args['api_key'];
-        } elseif ( ! empty( $this->config['api_key'] ) ) {
-            $api_key = (string) $this->config['api_key'];
-        }
-
-        if ( $api_key && empty( $headers['Authorization'] ) ) {
-            $headers['Authorization'] = 'Bearer ' . $api_key;
-        }
-
-        return $headers;
-    }
 
     /**
-     * Resolve timeout.
-     *
-     * @param array $args Arguments.
-     *
-     * @return int
-     */
-    protected function timeout( $args = array() ) {
-        if ( isset( $args['timeout'] ) ) {
-            return max( 5, (int) $args['timeout'] );
-        }
-
-        if ( ! empty( $this->config['timeout'] ) ) {
-            return max( 5, (int) $this->config['timeout'] );
-        }
-
-        return 30;
-    }
-
-    /**
-     * Resolve retries.
-     *
-     * @param array $args Arguments.
-     *
-     * @return int
-     */
-    protected function retries( $args = array() ) {
-        if ( isset( $args['retries'] ) ) {
-            return min( 5, max( 0, (int) $args['retries'] ) );
-        }
-
-        if ( isset( $this->config['retries'] ) ) {
-            return min( 5, max( 0, (int) $this->config['retries'] ) );
-        }
-
-        return 3;
-    }
-
-    /**
-     * Get base URL using sandbox flag.
-     *
-     * @return string
-     */
-    protected function get_base_url() {
-        return $this->base_url();
-    }
-
-    /**
-     * Resolve base URL considering overrides.
-     *
-     * @param array $args Arguments.
-     *
-     * @return string
-     */
-    protected function base_url( $args = array() ) {
-        if ( isset( $args['base_url'] ) && $args['base_url'] ) {
-            return untrailingslashit( $args['base_url'] );
-        }
-
-        $sandbox = null;
-        if ( isset( $args['sandbox'] ) ) {
-            $sandbox = $args['sandbox'];
-        } else {
-            $sandbox = FTC_Utils::array_get( $this->config, 'sandbox', 'yes' );
-        }
-
-        $sandbox_enabled = in_array( $sandbox, array( true, 'yes', 1, '1' ), true );
-
-        if ( $sandbox_enabled ) {
-            return untrailingslashit( FTC_Utils::array_get( $this->config, 'base_url_sandbox', '' ) );
-        }
-
-        return untrailingslashit( FTC_Utils::array_get( $this->config, 'base_url_production', '' ) );
-    }
-
-    /**
-     * Build headers for request.
+     * Build HTTP headers for a request.
      *
      * @param array $extra Extra headers.
      * @param array $args  Optional args.
      *
      * @return array
      */
-    protected function build_headers( $extra = array(), $args = array() ) {
+    protected function build_headers( array $extra = array(), array $args = array() ) {
         $headers = array_merge(
             array(
-                'Content-Type' => 'application/json',
+                'Accept' => 'application/json',
             ),
             is_array( $extra ) ? $extra : array()
         );
 
+        if ( ! isset( $headers['Content-Type'] ) ) {
+            $headers['Content-Type'] = 'application/json';
+        }
+
         $credentials = $this->credentials( $args );
 
-        if ( ! empty( $credentials['api_key'] ) ) {
+        if ( ! empty( $credentials['api_key'] ) && empty( $headers['Authorization'] ) ) {
             $headers['Authorization'] = 'Bearer ' . $credentials['api_key'];
         }
 
@@ -465,13 +420,17 @@ class FTC_Client {
      * @param array $args Optional args.
      *
      * @return string
+     * @throws \Exception When base URL is missing.
      */
     protected function base_url( $args = array() ) {
+        if ( isset( $args['base_url'] ) && $args['base_url'] ) {
+            return untrailingslashit( $args['base_url'] );
+        }
+
         $credentials = $this->credentials( $args );
         $sandbox     = $this->is_sandbox( $credentials, $args );
 
         $base = $sandbox ? FTC_Utils::array_get( $credentials, 'base_url_sandbox', '' ) : FTC_Utils::array_get( $credentials, 'base_url_production', '' );
-
         $base = apply_filters( 'ftc_client_base_url', $base, $sandbox, $args, $this );
 
         if ( empty( $base ) ) {
@@ -529,5 +488,24 @@ class FTC_Client {
         }
 
         return ! empty( $this->config['timeout'] ) ? (int) $this->config['timeout'] : 30;
+    }
+
+    /**
+     * Resolve retries value.
+     *
+     * @param array $args Optional args.
+     *
+     * @return int
+     */
+    protected function retries( $args = array() ) {
+        if ( isset( $args['retries'] ) ) {
+            return min( 5, max( 0, (int) $args['retries'] ) );
+        }
+
+        if ( isset( $this->config['retries'] ) ) {
+            return min( 5, max( 0, (int) $this->config['retries'] ) );
+        }
+
+        return 3;
     }
 }

@@ -20,6 +20,7 @@ require_once FTC_PLUGIN_DIR . 'includes/api/class-ftc-webhooks.php';
 require_once FTC_PLUGIN_DIR . 'includes/sync/class-ftc-action-scheduler.php';
 require_once FTC_PLUGIN_DIR . 'includes/sync/class-ftc-customer-sync.php';
 require_once FTC_PLUGIN_DIR . 'includes/sync/class-ftc-cart-sync.php';
+require_once FTC_PLUGIN_DIR . 'includes/order/class-ftc-jsonpedido.php';
 require_once FTC_PLUGIN_DIR . 'includes/order/class-ftc-order-meta.php';
 require_once FTC_PLUGIN_DIR . 'includes/order/class-ftc-order-status.php';
 require_once FTC_PLUGIN_DIR . 'includes/gateway/class-ftc-gateway-getnet.php';
@@ -99,25 +100,11 @@ class FTC_Plugin {
     protected $settings = array();
 
     /**
-     * Database helper instance.
-     *
-     * @var FTC_DB|null
-     */
-    protected $db_instance = null;
-
-    /**
      * Customer sync instance.
      *
      * @var FTC_Customer_Sync|null
      */
     protected $customer_sync_instance = null;
-
-    /**
-     * Cart sync instance.
-     *
-     * @var FTC_Cart_Sync|null
-     */
-    protected $cart_sync_instance = null;
 
     /**
      * Get singleton instance.
@@ -382,69 +369,76 @@ class FTC_Plugin {
      * @throws Exception When fails.
      */
     public function recreate_payment_for_order( $order ) {
-        $customer_sync = new FTC_Customer_Sync();
+        $gateway      = $this->get_gateway_instance();
+        $customer_sync = $this->customer_sync();
         $cart_sync     = $this->cart_sync();
-        $user_id       = $customer_sync->get_or_create_topten_user_from_order( $order );
+        $user_id       = (int) $customer_sync->get_or_create_topten_user_from_order( $order );
         $order->update_meta_data( '_ftc_topten_user_id', $user_id );
         $order->save();
-        $cart_id       = $cart_sync->create_topten_cart_from_order( $order, $user_id );
 
-        $return_url  = add_query_arg(
+        $cart_id = (int) $cart_sync->create_topten_cart_from_order( $order, $user_id );
+
+        $currency = $order->get_currency();
+        $mone_id  = FTC_Utils::map_currency_to_mone_id( $currency );
+
+        $coge_id  = (int) $gateway->get_option( 'coge_id_pago', 27 );
+        $mepa_id  = (int) $gateway->get_option( 'mepa_id', 1 );
+        $sucursal = (int) $gateway->get_option( 'sucursal_id', 78 );
+        $id_pais  = (int) $gateway->get_option( 'id_pais', 186 );
+        $indic    = (string) $gateway->get_option( 'indicativo', '+598' );
+        $origen   = (string) $gateway->get_option( 'origen', get_bloginfo( 'name' ) );
+
+        $json_obj = FTC_JsonPedido::build_from_order(
+            $order,
+            array(
+                'usua_cod'     => $user_id,
+                'mone_id'      => $mone_id,
+                'coge_id_pago' => $coge_id,
+                'mepa_id'      => $mepa_id,
+                'sucursal_id'  => $sucursal,
+                'id_pais'      => $id_pais,
+                'indicativo'   => $indic,
+                'origen'       => $origen,
+            )
+        );
+
+        $json_pedido_str = wp_json_encode( $json_obj, JSON_UNESCAPED_UNICODE );
+
+        $return_url = add_query_arg(
             array(
                 'order_id' => $order->get_id(),
                 'key'      => $order->get_order_key(),
             ),
             rest_url( 'ftc/v1/getnet/return' )
         );
-        $callback_url = rest_url( 'ftc/v1/getnet/webhook' );
 
         $payload = array(
-            'cart_id'     => $cart_id,
-            'return_url'  => $return_url,
-            'callback_url'=> $callback_url,
-            'metadata'    => array(
-                'wc_order_id'  => $order->get_id(),
-                'wc_order_key' => $order->get_order_key(),
-            ),
+            'Carr_Id'      => $cart_id,
+            'Coge_Id_Pago' => $coge_id,
+            'Mepa_Id'      => $mepa_id,
+            'JsonPedido'   => $json_pedido_str,
+            'UrlRedirect'  => $return_url,
         );
 
-        $payload = apply_filters( 'ftc_create_payment_payload', $payload, $order );
+        $client   = $this->client( $gateway->get_gateway_config() );
+        $response = $client->create_payment_placetopay( $payload );
 
-        $client   = $this->get_client_from_order( $order );
-        $response = $client->create_payment( $payload, array( 'idempotency_key' => FTC_Utils::uuid_v4() ) );
-
-        $payment_id = isset( $response['payment_id'] ) ? $response['payment_id'] : ( isset( $response['id'] ) ? $response['id'] : '' );
-
-        if ( empty( $payment_id ) ) {
-            throw new Exception( __( 'No se recibió ID de pago.', 'ferk-topten-connector' ) );
-        }
-
-        if ( empty( $response['payment_url'] ) && empty( $response['redirect_url'] ) ) {
-            throw new Exception( __( 'No se recibió URL de pago.', 'ferk-topten-connector' ) );
-        }
-
-        $payment_url = ! empty( $response['payment_url'] ) ? $response['payment_url'] : $response['redirect_url'];
-
-        $order->update_meta_data( '_ftc_topten_payment_id', $payment_id );
-        $order->update_meta_data( '_ftc_topten_payment_url', $payment_url );
+        $order->update_meta_data( '_ftc_topten_payment_token', $response['token'] );
+        $order->update_meta_data( '_ftc_topten_payment_url', $response['url_external'] );
+        $order->update_meta_data( '_ftc_topten_payment_expiration_utc', $response['expiration_utc'] );
+        $order->update_meta_data( '_ftc_topten_payment_idadquiria', $response['id_adquiria'] );
         $order->save();
 
-        FTC_Logger::instance()->info( 'payment_retry', __( 'Pago recreado desde administración.', 'ferk-topten-connector' ), array( 'order_id' => $order->get_id(), 'payment_id' => $payment_id ) );
+        FTC_Logger::instance()->info(
+            'payment_retry',
+            __( 'Pago recreado desde administración.', 'ferk-topten-connector' ),
+            array(
+                'order_id' => $order->get_id(),
+                'token'    => $response['token'],
+            )
+        );
 
         return $response;
-    }
-
-    /**
-     * Get database helper.
-     *
-     * @return FTC_DB
-     */
-    public function db() {
-        if ( null === $this->db_instance ) {
-            $this->db_instance = new FTC_DB();
-        }
-
-        return $this->db_instance;
     }
 
     /**
@@ -460,16 +454,4 @@ class FTC_Plugin {
         return $this->customer_sync_instance;
     }
 
-    /**
-     * Get cart sync helper.
-     *
-     * @return FTC_Cart_Sync
-     */
-    public function cart_sync() {
-        if ( null === $this->cart_sync_instance ) {
-            $this->cart_sync_instance = new FTC_Cart_Sync();
-        }
-
-        return $this->cart_sync_instance;
-    }
 }

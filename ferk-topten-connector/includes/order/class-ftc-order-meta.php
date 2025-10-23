@@ -49,11 +49,21 @@ class FTC_Order_Meta {
             return;
         }
 
-        $user_id     = $order->get_meta( '_ftc_topten_user_id' );
-        $cart_id     = $order->get_meta( '_ftc_topten_cart_id' );
-        $payment_id  = $order->get_meta( '_ftc_topten_payment_id' );
-        $payment_url = $order->get_meta( '_ftc_topten_payment_url' );
-        $status      = $order->get_meta( '_ftc_topten_payment_status' );
+        $user_id       = $order->get_meta( '_ftc_topten_user_id' );
+        $cart_id       = $order->get_meta( '_ftc_topten_cart_id' );
+        $payment_id    = $order->get_meta( '_ftc_topten_payment_id' );
+        $payment_url   = $order->get_meta( '_ftc_topten_payment_url' );
+        $status        = $order->get_meta( '_ftc_topten_payment_status' );
+        $payment_token = $order->get_meta( '_ftc_topten_payment_token' );
+        $expiration    = $order->get_meta( '_ftc_topten_payment_expiration_utc' );
+        $id_adquiria   = $order->get_meta( '_ftc_topten_payment_idadquiria' );
+
+        $expiration_display = '';
+        if ( ! empty( $expiration ) && is_numeric( $expiration ) ) {
+            $expiration_display = gmdate( 'Y-m-d H:i:s', (int) $expiration ) . ' UTC';
+        } elseif ( ! empty( $expiration ) ) {
+            $expiration_display = (string) $expiration;
+        }
 
         ?>
         <p><strong><?php esc_html_e( 'Usuario TopTen:', 'ferk-topten-connector' ); ?></strong> <?php echo esc_html( $user_id ? $user_id : '—' ); ?></p>
@@ -70,8 +80,20 @@ class FTC_Order_Meta {
         ?>
         <p><strong><?php esc_html_e( 'Pago TopTen:', 'ferk-topten-connector' ); ?></strong> <?php echo esc_html( $payment_id ? $payment_id : '—' ); ?></p>
         <p><strong><?php esc_html_e( 'Estado pago TopTen:', 'ferk-topten-connector' ); ?></strong> <?php echo esc_html( $status ? $status : '—' ); ?></p>
+        <?php if ( $payment_token ) : ?>
+            <p><strong><?php esc_html_e( 'TopTen Payment Token:', 'ferk-topten-connector' ); ?></strong> <?php echo esc_html( $payment_token ); ?></p>
+        <?php endif; ?>
         <?php if ( $payment_url ) : ?>
-            <p><a class="button button-secondary" href="<?php echo esc_url( $payment_url ); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'Abrir pago en TopTen', 'ferk-topten-connector' ); ?></a></p>
+            <p><strong><?php esc_html_e( 'TopTen Payment URL:', 'ferk-topten-connector' ); ?></strong> <a href="<?php echo esc_url( $payment_url ); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html( $payment_url ); ?></a></p>
+        <?php endif; ?>
+        <?php if ( $expiration_display ) : ?>
+            <p><strong><?php esc_html_e( 'Expiration (UTC):', 'ferk-topten-connector' ); ?></strong> <?php echo esc_html( $expiration_display ); ?></p>
+        <?php endif; ?>
+        <?php if ( $id_adquiria ) : ?>
+            <p><strong><?php esc_html_e( 'IdAdquiria:', 'ferk-topten-connector' ); ?></strong> <?php echo esc_html( $id_adquiria ); ?></p>
+        <?php endif; ?>
+        <?php if ( $payment_url ) : ?>
+            <p><a class="button button-secondary" href="<?php echo esc_url( $payment_url ); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'Abrir URL de pago', 'ferk-topten-connector' ); ?></a></p>
         <?php endif; ?>
         <p>
             <button class="button" name="ftc-retry-payment" value="1" form="ftc-retry-payment-form"><?php esc_html_e( 'Reintentar crear pago', 'ferk-topten-connector' ); ?></button>

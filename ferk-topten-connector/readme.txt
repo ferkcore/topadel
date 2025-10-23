@@ -3,7 +3,7 @@ Contributors: ferk
 Tags: woocommerce, payments, gateway
 Requires at least: 6.0
 Tested up to: 6.5
-Stable tag: 0.2.2
+Stable tag: 0.2.3
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -27,6 +27,11 @@ Sí, debes solicitar credenciales a tu equipo de TopTen.
 Usa el botón "Testear conexión" en la pestaña de herramientas para verificar la comunicación con la API.
 
 == Changelog ==
+= 0.2.3 =
+* Integra el endpoint PaymentPlacetopay para iniciar sesiones de pago externas con PlaceToPay.
+* Añade constructor JsonPedido y mapeo de monedas para completar la información requerida por TopTen.
+* Mejora herramientas y metadatos de pedidos en administración para diagnosticar sesiones de pago.
+
 = 0.2.2 =
 * Implementa el endpoint AddCartProductExternal para crear carritos en TopTen y reutilizarlos en el checkout.
 * Añade utilidades para mapear Prod_Id y atributos de productos hacia TopTen.
