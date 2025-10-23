@@ -116,24 +116,57 @@ class FTC_Utils {
      * @return int|null
      */
     public static function resolve_topten_product_id( \WC_Product $product ) {
-        $meta_key = apply_filters( 'ftc_topten_product_meta_key', '_ftc_topten_prod_id', $product );
-        $meta     = get_post_meta( $product->get_id(), $meta_key, true );
+        $targets = array();
 
-        if ( is_numeric( $meta ) && (int) $meta > 0 ) {
-            return (int) $meta;
+        $targets[] = array(
+            'id'      => (int) $product->get_id(),
+            'product' => $product,
+        );
+
+        if ( $product->is_type( 'variation' ) ) {
+            $parent_id = (int) $product->get_parent_id();
+            if ( $parent_id > 0 ) {
+                $parent_product = wc_get_product( $parent_id );
+                $targets[]      = array(
+                    'id'      => $parent_id,
+                    'product' => $parent_product,
+                );
+            }
         }
 
-        $db  = \FTC_Plugin::instance()->db();
-        $map = $db ? $db->find_map( 'product', (int) $product->get_id() ) : null;
+        foreach ( $targets as $target ) {
+            $meta = get_post_meta( $target['id'], 'id_topten', true );
+            if ( is_numeric( $meta ) && (int) $meta > 0 ) {
+                return (int) $meta;
+            }
+        }
 
-        if ( $map && ! empty( $map['external_id'] ) && is_numeric( $map['external_id'] ) ) {
-            return (int) $map['external_id'];
+        foreach ( $targets as $target ) {
+            $product_obj = isset( $target['product'] ) && $target['product'] instanceof \WC_Product ? $target['product'] : $product;
+            $legacy_key  = apply_filters( 'ftc_topten_product_meta_key', '_ftc_topten_prod_id', $product_obj );
+            $legacy      = get_post_meta( $target['id'], $legacy_key, true );
+
+            if ( is_numeric( $legacy ) && (int) $legacy > 0 ) {
+                return (int) $legacy;
+            }
+        }
+
+        $db = \FTC_Plugin::instance()->db();
+        if ( $db ) {
+            foreach ( $targets as $target ) {
+                $map = $db->find_map( 'product', (int) $target['id'] );
+                if ( $map && ! empty( $map['external_id'] ) && is_numeric( $map['external_id'] ) ) {
+                    return (int) $map['external_id'];
+                }
+            }
         }
 
         $sku = (string) $product->get_sku();
-        $mapped = apply_filters( 'ftc_topten_resolve_prod_id_by_sku', null, $sku, $product );
-        if ( is_numeric( $mapped ) && (int) $mapped > 0 ) {
-            return (int) $mapped;
+        if ( '' !== $sku ) {
+            $mapped = apply_filters( 'ftc_topten_resolve_prod_id_by_sku', null, $sku, $product );
+            if ( is_numeric( $mapped ) && (int) $mapped > 0 ) {
+                return (int) $mapped;
+            }
         }
 
         return null;

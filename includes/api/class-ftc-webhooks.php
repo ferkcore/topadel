@@ -77,6 +77,16 @@ class FTC_Webhooks {
                 'permission_callback' => array( $this, 'check_admin_permission' ),
             )
         );
+
+        register_rest_route(
+            'ftc/v1',
+            '/admin/products-map',
+            array(
+                'methods'             => 'POST',
+                'callback'            => array( $this, 'handle_admin_products_map' ),
+                'permission_callback' => array( $this, 'check_admin_permission' ),
+            )
+        );
     }
 
     /**
@@ -242,6 +252,68 @@ class FTC_Webhooks {
                 'order_found'  => true,
             )
         );
+    }
+
+    /**
+     * Handle admin products map action.
+     *
+     * @param WP_REST_Request $request Request.
+     *
+     * @return WP_REST_Response|WP_Error
+     */
+    public function handle_admin_products_map( WP_REST_Request $request ) {
+        $nonce = $request->get_param( 'nonce' );
+        if ( ! is_string( $nonce ) || ! wp_verify_nonce( $nonce, 'ftc_products_map' ) ) {
+            return new WP_Error( 'ftc_products_map_nonce', __( 'Nonce inválido.', 'ferk-topten-connector' ), array( 'status' => 403 ) );
+        }
+
+        $strategy = $request->get_param( 'strategy' );
+        $strategy = in_array( $strategy, array( 'case_insensitive_trim', 'exact' ), true ) ? $strategy : 'case_insensitive_trim';
+
+        $apply_changes = rest_sanitize_boolean( $request->get_param( 'apply_changes' ) );
+        $overwrite     = rest_sanitize_boolean( $request->get_param( 'overwrite' ) );
+        $max_pages     = absint( $request->get_param( 'max_pages' ) );
+
+        $keyword = $request->get_param( 'palabra_clave' );
+        if ( null !== $keyword ) {
+            $keyword = is_string( $keyword ) ? sanitize_text_field( $keyword ) : '';
+            if ( '' === $keyword ) {
+                $keyword = null;
+            }
+        }
+
+        $importer_args = array(
+            'apply_changes' => (bool) $apply_changes,
+            'overwrite'     => (bool) $overwrite,
+            'strategy'      => $strategy,
+            'palabra_clave' => $keyword,
+            'max_pages'     => $max_pages,
+        );
+
+        try {
+            $result = FTC_Plugin::instance()->products_importer()->map_by_sku( $importer_args );
+        } catch ( Exception $exception ) {
+            FTC_Logger::instance()->error(
+                'products-map',
+                'Products map failed',
+                array( 'error' => $exception->getMessage() )
+            );
+
+            return new WP_Error( 'ftc_products_map_failed', $exception->getMessage(), array( 'status' => 500 ) );
+        }
+
+        $response = array(
+            'summary'   => isset( $result['summary'] ) && is_array( $result['summary'] ) ? $result['summary'] : array(),
+            'rows'      => isset( $result['rows'] ) && is_array( $result['rows'] ) ? $result['rows'] : array(),
+            'truncated' => ! empty( $result['truncated'] ),
+        );
+
+        if ( count( $response['rows'] ) > FTC_Products_Importer::MAX_RESPONSE_ROWS ) {
+            $response['rows'] = array_slice( $response['rows'], 0, FTC_Products_Importer::MAX_RESPONSE_ROWS );
+            $response['truncated'] = true;
+        }
+
+        return rest_ensure_response( $response );
     }
 
     /**

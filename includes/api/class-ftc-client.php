@@ -23,6 +23,7 @@ class FTC_Client {
     const PATH_ADD_CART_EXTERNAL     = '/api/Cart/AddCartProductExternal';
     const PATH_PAYMENT_PLACETOPAY    = '/api/CommonWeb/PaymentPlacetopay';
     const PATH_GETTOKEN              = '/api/Account/GetToken';
+    const PATH_GETPRODUCTS_DETAIL    = '/api/Pro_Productos/GetProductosDetail';
 
     /**
      * Configuration array.
@@ -143,6 +144,42 @@ class FTC_Client {
         }
 
         throw new Exception( __( 'No fue posible contactar al servicio TopTen.', 'ferk-topten-connector' ) );
+    }
+
+    /**
+     * Fetch TopTen products detail list.
+     *
+     * @param array $payload Request payload.
+     * @param array $args    Extra args for transport.
+     *
+     * @return array
+     * @throws Exception When the request fails or the response is invalid.
+     */
+    public function get_products_detail( array $payload, array $args = array() ) : array {
+        $request_args = array_merge( array( 'use_token' => true ), $args );
+        $headers      = $this->build_headers( array( 'Content-Type' => 'application/json' ), $request_args );
+
+        $response = wp_remote_post(
+            $this->base_url( $request_args ) . self::PATH_GETPRODUCTS_DETAIL,
+            array(
+                'headers' => $headers,
+                'timeout' => $this->timeout( $request_args ),
+                'body'    => wp_json_encode( $payload, JSON_UNESCAPED_UNICODE ),
+            )
+        );
+
+        if ( is_wp_error( $response ) ) {
+            throw new Exception( 'GetProductosDetail transport error: ' . $response->get_error_message() );
+        }
+
+        $raw  = wp_remote_retrieve_body( $response );
+        $json = json_decode( $raw, true );
+
+        if ( ! is_array( $json ) ) {
+            throw new Exception( 'GetProductosDetail unexpected response: ' . $raw );
+        }
+
+        return $json;
     }
 
     /**

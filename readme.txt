@@ -3,7 +3,7 @@ Contributors: ferk
 Tags: woocommerce, payments, gateway
 Requires at least: 6.0
 Tested up to: 6.5
-Stable tag: 0.3.0
+Stable tag: 0.3.1
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -13,7 +13,9 @@ Integración de WooCommerce con la plataforma TopTen para procesar pagos mediant
 == Descripción ==
 Ferk Topten Connector agrega un gateway de pago "GetNet (TopTen)" y sincroniza clientes y carritos entre WooCommerce y la plataforma TopTen.
 
-Desde la versión 0.3.0 puedes autenticarte mediante tokens obtenidos con el endpoint `POST /api/Account/GetToken`. Configura el **Auth Username**, **Auth Password** y **Enti_Id** desde la pestaña de credenciales; estos valores también alimentan al gateway de GetNet. Cuando una llamada requiere autenticación se prioriza el encabezado `Authorization: Bearer {token}` y, si es necesario, se envía la API Key como `X-Api-Key`.
+Desde la versión 0.3.1 puedes mapear productos de WooCommerce con TopTen por SKU y guardar únicamente el metadato `id_topten`, asegurando que el checkout utilice ese identificador como fuente principal. Además, la pestaña de productos te permite previsualizar coincidencias, sobrescribir valores existentes bajo demanda y exportar los resultados.
+
+La autenticación por token (`POST /api/Account/GetToken`) continúa disponible desde la pestaña de credenciales. Configura el **Auth Username**, **Auth Password** y **Enti_Id** para habilitar solicitudes autenticadas, y recuerda que cuando una llamada requiere autenticación se prioriza el encabezado `Authorization: Bearer {token}`.
 
 == Instalación ==
 1. Sube la carpeta del plugin a `wp-content/plugins/` o instala el ZIP desde el administrador de WordPress.
@@ -32,6 +34,11 @@ Usa el botón "Testear conexión" en la pestaña de herramientas para verificar 
 En la pestaña de herramientas encontrarás el botón "Probar Auth (GetToken)". Ejecuta una solicitud REST segura que renueva el token inmediatamente y muestra los primeros caracteres y tiempo restante antes de expirar.
 
 == Changelog ==
+= 0.3.1 =
+* Añade pestaña "Productos" con herramienta para consultar `GetProductosDetail`, mapear por SKU y opcionalmente escribir el metadato `id_topten`.
+* Incorpora vista previa de coincidencias, exportación CSV y soporte para sobreescritura controlada del campo `id_topten`.
+* Ajusta la resolución de `Prod_Id` en carrito y pago para priorizar `id_topten` de productos y variaciones.
+
 = 0.3.0 =
 * Añade autenticación por token con caché y renovación automática para solicitudes con `use_token`.
 * Incorpora campos de Auth Username, Auth Password y Enti_Id en ajustes, junto con prueba manual del endpoint GetToken.

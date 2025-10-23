@@ -31,3 +31,39 @@
 .ftc-settings .ftc-password-field input {
     flex: 1;
 }
+
+.ftc-products-tab {
+    margin-top: 1em;
+}
+
+.ftc-products-controls p {
+    margin: 0 0 0.75em;
+}
+
+.ftc-products-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 1em;
+}
+
+.ftc-products-summary {
+    margin-top: 1em;
+}
+
+.ftc-products-summary.ftc-success {
+    color: #0a8a0a;
+}
+
+.ftc-products-summary.ftc-error {
+    color: #d63638;
+}
+
+.ftc-products-table-wrapper {
+    margin-top: 1em;
+    overflow-x: auto;
+}
+
+#ftc-products-results td small {
+    color: #646970;
+}
