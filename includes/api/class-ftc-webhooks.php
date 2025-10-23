@@ -70,16 +70,6 @@ class FTC_Webhooks {
 
         register_rest_route(
             'ftc/v1',
-            '/admin/test-auth',
-            array(
-                'methods'             => 'POST',
-                'callback'            => array( $this, 'handle_admin_test_auth' ),
-                'permission_callback' => array( $this, 'check_admin_permission' ),
-            )
-        );
-
-        register_rest_route(
-            'ftc/v1',
             '/admin/products-map',
             array(
                 'methods'             => 'POST',
@@ -406,42 +396,6 @@ class FTC_Webhooks {
                 'email' => $email,
             )
         );
-    }
-
-    /**
-     * Handle admin auth test.
-     *
-     * @param WP_REST_Request $request Request.
-     *
-     * @return WP_REST_Response|WP_Error
-     */
-    public function handle_admin_test_auth( WP_REST_Request $request ) {
-        if ( ! current_user_can( 'manage_woocommerce' ) ) {
-            return new WP_Error( 'ftc_forbidden', __( 'No tienes permisos para esta acción.', 'ferk-topten-connector' ), array(
-                'status' => 403,
-            ) );
-        }
-
-        try {
-            $client = FTC_Plugin::instance()->client();
-            $data   = $client->get_token( true );
-
-            $token   = isset( $data['token'] ) ? (string) $data['token'] : '';
-            $exp     = isset( $data['expiration'] ) ? (int) $data['expiration'] : 0;
-            $expires = max( 0, $exp - time() );
-
-            return rest_ensure_response(
-                array(
-                    'ok'                => true,
-                    'token_starts_with' => substr( $token, 0, 8 ),
-                    'expires_in'        => $expires,
-                )
-            );
-        } catch ( Exception $e ) {
-            FTC_Logger::instance()->error( 'tools', 'test_auth_failed: ' . $e->getMessage() );
-
-            return new WP_Error( 'ftc_test_auth_failed', $e->getMessage(), array( 'status' => 500 ) );
-        }
     }
 
     /**

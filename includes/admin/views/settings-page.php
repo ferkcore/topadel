@@ -71,29 +71,6 @@ if ( ! isset( $tabs[ $current_tab ] ) ) {
                             </td>
                         </tr>
                         <tr>
-                            <th scope="row"><?php esc_html_e( 'Auth Username', 'ferk-topten-connector' ); ?></th>
-                            <td>
-                                <input type="text" class="regular-text" name="ftc_auth_user" id="ftc-auth-user" value="<?php echo esc_attr( $auth_credentials['user'] ); ?>" autocomplete="off" />
-                            </td>
-                        </tr>
-                        <tr>
-                            <th scope="row"><?php esc_html_e( 'Auth Password', 'ferk-topten-connector' ); ?></th>
-                            <td>
-                                <div class="ftc-password-field">
-                                    <input type="password" class="regular-text" name="ftc_auth_pass" id="ftc-auth-pass" value="<?php echo esc_attr( $auth_credentials['pass'] ); ?>" autocomplete="new-password" />
-                                    <button type="button" class="button button-secondary ftc-toggle-password" data-target="#ftc-auth-pass" data-label-show="<?php esc_attr_e( 'Mostrar contraseña', 'ferk-topten-connector' ); ?>" data-label-hide="<?php esc_attr_e( 'Ocultar contraseña', 'ferk-topten-connector' ); ?>" aria-pressed="false" aria-label="<?php esc_attr_e( 'Mostrar contraseña', 'ferk-topten-connector' ); ?>">👁</button>
-                                </div>
-                                <p class="description"><?php esc_html_e( 'Este password nunca se mostrará en registros ni logs.', 'ferk-topten-connector' ); ?></p>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th scope="row"><?php esc_html_e( 'Enti_Id', 'ferk-topten-connector' ); ?></th>
-                            <td>
-                                <input type="number" min="1" class="small-text" name="ftc_auth_enti_id" id="ftc-auth-enti" value="<?php echo esc_attr( (int) $auth_credentials['enti'] ); ?>" />
-                                <p class="description"><?php esc_html_e( 'Identificador de entidad provisto por TopTen. Predeterminado: 51.', 'ferk-topten-connector' ); ?></p>
-                            </td>
-                        </tr>
-                        <tr>
                             <th scope="row"><?php esc_html_e( 'Webhook Secret', 'ferk-topten-connector' ); ?></th>
                             <td>
                                 <input type="password" class="regular-text" name="ftc_settings[credentials][webhook_secret]" value="<?php echo esc_attr( FTC_Utils::array_get( $settings, 'credentials.webhook_secret', '' ) ); ?>" autocomplete="off" />
@@ -157,7 +134,7 @@ if ( ! isset( $tabs[ $current_tab ] ) ) {
                             <input type="number" id="ftc-products-pages" class="small-text" value="10" min="0" max="100" />
                             <span class="description"><?php esc_html_e( 'Usa 0 para iterar hasta agotar resultados (límite de 100 páginas).', 'ferk-topten-connector' ); ?></span>
                         </p>
-                        <p class="description"><?php esc_html_e( 'Se utilizarán el Enti_Id y credenciales configuradas en la pestaña Credenciales.', 'ferk-topten-connector' ); ?></p>
+                        <p class="description"><?php esc_html_e( 'Se utilizarán las credenciales configuradas y el Enti_Id definido por el filtro ftc_topten_entity_id (51 por defecto).', 'ferk-topten-connector' ); ?></p>
                     </div>
                     <div class="ftc-products-actions">
                         <button type="button" class="button button-secondary" id="ftc-products-map-run"><?php esc_html_e( 'Traer y mapear por SKU', 'ferk-topten-connector' ); ?></button>
@@ -229,13 +206,6 @@ if ( ! isset( $tabs[ $current_tab ] ) ) {
                     </button>
                     <span class="spinner" id="ftc-test-spinner"></span>
                     <span id="ftc-test-result" class="ftc-test-message" aria-live="polite"></span>
-                </p>
-                <p>
-                    <button type="button" class="button button-secondary" id="ftc-test-auth">
-                        <?php esc_html_e( 'Probar Auth (GetToken)', 'ferk-topten-connector' ); ?>
-                    </button>
-                    <span class="spinner" id="ftc-test-auth-spinner"></span>
-                    <span id="ftc-test-auth-result" class="ftc-test-message" aria-live="polite"></span>
                 </p>
                 <p>
                     <button type="button" class="button button-secondary" id="ftc-test-user">

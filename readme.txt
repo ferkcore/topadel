@@ -3,7 +3,7 @@ Contributors: ferk
 Tags: woocommerce, payments, gateway
 Requires at least: 6.0
 Tested up to: 6.5
-Stable tag: 0.3.1
+Stable tag: 0.3.2
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -15,7 +15,7 @@ Ferk Topten Connector agrega un gateway de pago "GetNet (TopTen)" y sincroniza c
 
 Desde la versión 0.3.1 puedes mapear productos de WooCommerce con TopTen por SKU y guardar únicamente el metadato `id_topten`, asegurando que el checkout utilice ese identificador como fuente principal. Además, la pestaña de productos te permite previsualizar coincidencias, sobrescribir valores existentes bajo demanda y exportar los resultados.
 
-La autenticación por token (`POST /api/Account/GetToken`) continúa disponible desde la pestaña de credenciales. Configura el **Auth Username**, **Auth Password** y **Enti_Id** para habilitar solicitudes autenticadas, y recuerda que cuando una llamada requiere autenticación se prioriza el encabezado `Authorization: Bearer {token}`.
+Las integraciones consumen la API de TopTen utilizando únicamente la API Key configurada en la pestaña de credenciales, por lo que no es necesario gestionar tokens adicionales para acceder a productos o herramientas.
 
 == Instalación ==
 1. Sube la carpeta del plugin a `wp-content/plugins/` o instala el ZIP desde el administrador de WordPress.
@@ -30,19 +30,16 @@ Sí, debes solicitar credenciales a tu equipo de TopTen.
 = ¿Cómo pruebo la conexión? =
 Usa el botón "Testear conexión" en la pestaña de herramientas para verificar la comunicación con la API.
 
-= ¿Cómo pruebo la autenticación por token? =
-En la pestaña de herramientas encontrarás el botón "Probar Auth (GetToken)". Ejecuta una solicitud REST segura que renueva el token inmediatamente y muestra los primeros caracteres y tiempo restante antes de expirar.
-
 == Changelog ==
+= 0.3.2 =
+* Elimina la autenticación por token y los campos asociados; ahora todas las solicitudes se firman únicamente con la API Key.
+
 = 0.3.1 =
 * Añade pestaña "Productos" con herramienta para consultar `GetProductosDetail`, mapear por SKU y opcionalmente escribir el metadato `id_topten`.
 * Incorpora vista previa de coincidencias, exportación CSV y soporte para sobreescritura controlada del campo `id_topten`.
 * Ajusta la resolución de `Prod_Id` en carrito y pago para priorizar `id_topten` de productos y variaciones.
 
 = 0.3.0 =
-* Añade autenticación por token con caché y renovación automática para solicitudes con `use_token`.
-* Incorpora campos de Auth Username, Auth Password y Enti_Id en ajustes, junto con prueba manual del endpoint GetToken.
-* Programa una tarea recurrente (Action Scheduler o WP-Cron) que renueva el token silenciosamente antes de su expiración.
 * Expone helper `get_products()` para preparar futuras consultas autenticadas a productos.
 
 = 0.2.4 =
