@@ -156,8 +156,8 @@ class FTC_Gateway_Getnet extends WC_Payment_Gateway {
             'origen' => array(
                 'title'       => __( 'Origen del pedido', 'ferk-topten-connector' ),
                 'type'        => 'text',
-                'description' => __( 'Se enviará en el campo "origen" del JsonPedido. Por defecto el nombre del sitio.', 'ferk-topten-connector' ),
-                'default'     => get_bloginfo( 'name' ),
+                'description' => __( 'Se enviará en el campo "origen" del JsonPedido. Por defecto "Top Padel Fit Center".', 'ferk-topten-connector' ),
+                'default'     => 'Top Padel Fit Center',
             ),
         );
     }

@@ -51,7 +51,6 @@ class FTC_JsonPedido {
             );
         }
 
-        $email     = sanitize_email( $order->get_billing_email() );
         $full_name = trim( ( isset( $billing['nombres'] ) ? $billing['nombres'] : '' ) . ' ' . ( isset( $billing['apellidos'] ) ? $billing['apellidos'] : '' ) );
 
         $info_pago = array(
@@ -60,14 +59,49 @@ class FTC_JsonPedido {
             'captureDataIframe'  => false,
             'paymentMethodId'    => '',
             'tokenPayment'       => '',
-            'nombreCompletoPago' => $full_name,
-            'documento'          => (string) $billing['numeroDocumento'],
-            'tipoDocumento'      => (string) $billing['tipoDocumento'],
-            'email'              => $email,
+            'nombreCompletoPago' => '',
+            'documento'          => '',
+            'tipoDocumento'      => '',
+            'email'              => '',
             'coge_Id_Pago'       => (int) ( isset( $opts['coge_id_pago'] ) ? $opts['coge_id_pago'] : 27 ),
             'mepa_Id'            => (int) ( isset( $opts['mepa_id'] ) ? $opts['mepa_id'] : 1 ),
             'valid'              => true,
         );
+
+        $shipping_address_parts = array_filter(
+            array_map(
+                'wc_clean',
+                array(
+                    $order->get_shipping_address_1(),
+                    $order->get_shipping_address_2(),
+                    $order->get_shipping_city(),
+                    $order->get_shipping_state(),
+                    $order->get_shipping_postcode(),
+                    $order->get_shipping_country(),
+                )
+            )
+        );
+
+        if ( empty( $shipping_address_parts ) ) {
+            $shipping_address_parts = array_filter(
+                array_map(
+                    'wc_clean',
+                    array(
+                        $order->get_billing_address_1(),
+                        $order->get_billing_address_2(),
+                        $order->get_billing_city(),
+                        $order->get_billing_state(),
+                        $order->get_billing_postcode(),
+                        $order->get_billing_country(),
+                    )
+                )
+            );
+        }
+
+        $info_extra = implode( ', ', $shipping_address_parts );
+        if ( '' === $info_extra ) {
+            $info_extra = 'Pedido WooCommerce #' . $order->get_order_number();
+        }
 
         $entrega_usuario = array(
             'sucu_Id'           => (int) ( isset( $opts['sucursal_id'] ) ? $opts['sucursal_id'] : 78 ),
@@ -85,11 +119,11 @@ class FTC_JsonPedido {
                 'facturacionPedido' => $billing,
                 'entregaUsuario'    => $entrega_usuario,
                 'ipUsuario'         => \WC_Geolocation::get_ip_address(),
-                'infoExtra'         => 'Pedido WooCommerce #' . $order->get_order_number(),
+                'infoExtra'         => $info_extra,
                 'mone_Id'           => (int) ( isset( $opts['mone_id'] ) ? $opts['mone_id'] : 2 ),
                 'codigoCupon'       => '',
                 'usua_Cod'          => (int) ( isset( $opts['usua_cod'] ) ? $opts['usua_cod'] : 0 ),
-                'origen'            => (string) ( isset( $opts['origen'] ) ? $opts['origen'] : get_bloginfo( 'name' ) ),
+                'origen'            => (string) ( isset( $opts['origen'] ) && '' !== trim( $opts['origen'] ) ? $opts['origen'] : 'Top Padel Fit Center' ),
                 'productosPedido'   => $productos,
             ),
             'cartItems' => new \stdClass(),

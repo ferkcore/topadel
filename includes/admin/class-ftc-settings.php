@@ -334,7 +334,30 @@ class FTC_Settings {
         $client      = FTC_Plugin::instance()->client( $credentials );
 
         $sucursal_id  = $sucursal > 0 ? $sucursal : 78;
-        $origen_label = get_bloginfo( 'name' );
+        $origen_label = 'Top Padel Fit Center';
+
+        $store_country_state = get_option( 'woocommerce_default_country', '' );
+        if ( $store_country_state ) {
+            $store_country_state = wc_format_country_state_string( $store_country_state );
+        }
+
+        $store_address_parts = array_filter(
+            array_map(
+                'wc_clean',
+                array(
+                    get_option( 'woocommerce_store_address', '' ),
+                    get_option( 'woocommerce_store_address_2', '' ),
+                    get_option( 'woocommerce_store_city', '' ),
+                    get_option( 'woocommerce_store_postcode', '' ),
+                    $store_country_state,
+                )
+            )
+        );
+
+        $info_extra = implode( ', ', $store_address_parts );
+        if ( '' === $info_extra ) {
+            $info_extra = $origen_label;
+        }
 
         $json_pedido = array(
             'request'   => array(
@@ -344,10 +367,10 @@ class FTC_Settings {
                     'captureDataIframe'  => false,
                     'paymentMethodId'    => '',
                     'tokenPayment'       => '',
-                    'nombreCompletoPago' => 'Sandbox Tester',
-                    'documento'          => '99999999',
-                    'tipoDocumento'      => 'Cédula de identidad',
-                    'email'              => 'sandbox@example.com',
+                    'nombreCompletoPago' => '',
+                    'documento'          => '',
+                    'tipoDocumento'      => '',
+                    'email'              => '',
                     'coge_Id_Pago'       => $coge_id,
                     'mepa_Id'            => $mepa_id,
                     'valid'              => true,
@@ -374,7 +397,7 @@ class FTC_Settings {
                     'DiasEnvio'         => array(),
                 ),
                 'ipUsuario'         => '127.0.0.1',
-                'infoExtra'         => 'Prueba sandbox desde herramientas',
+                'infoExtra'         => $info_extra,
                 'mone_Id'           => 2,
                 'codigoCupon'       => '',
                 'usua_Cod'          => $usua_cod,
