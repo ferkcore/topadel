@@ -576,10 +576,33 @@ class FTC_Client {
         $sandbox     = $this->is_sandbox( $credentials, $args );
 
         $base = $sandbox ? FTC_Utils::array_get( $credentials, 'base_url_sandbox', '' ) : FTC_Utils::array_get( $credentials, 'base_url_production', '' );
+
+        if ( empty( $base ) ) {
+            $fallback_key = $sandbox ? 'base_url_production' : 'base_url_sandbox';
+            $fallback     = FTC_Utils::array_get( $credentials, $fallback_key, '' );
+
+            if ( ! empty( $fallback ) ) {
+                $missing_label  = $sandbox ? __( 'sandbox', 'ferk-topten-connector' ) : __( 'production', 'ferk-topten-connector' );
+                $fallback_label = $sandbox ? __( 'production', 'ferk-topten-connector' ) : __( 'sandbox', 'ferk-topten-connector' );
+
+                FTC_Logger::instance()->warn(
+                    'config',
+                    sprintf(
+                        /* translators: 1: missing environment name, 2: fallback environment name. */
+                        __( 'Missing %1$s base URL, falling back to %2$s.', 'ferk-topten-connector' ),
+                        $missing_label,
+                        $fallback_label
+                    )
+                );
+
+                $base = $fallback;
+            }
+        }
+
         $base = apply_filters( 'ftc_client_base_url', $base, $sandbox, $args, $this );
 
         if ( empty( $base ) ) {
-            throw new \Exception( __( 'Base URL no configurada.', 'ferk-topten-connector' ) );
+            throw new \Exception( __( 'Base URL no configurada. Configura las URLs de sandbox o producción en la sección de credenciales.', 'ferk-topten-connector' ) );
         }
 
         return untrailingslashit( $base );
