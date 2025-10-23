@@ -1,0 +1,11 @@
+.ftc-settings .ftc-test-message {
+    margin-left: 10px;
+}
+
+.ftc-settings .ftc-test-message.ftc-success {
+    color: #0a8a0a;
+}
+
+.ftc-settings .ftc-test-message.ftc-error {
+    color: #d63638;
+}
