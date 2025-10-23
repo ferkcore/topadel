@@ -19,6 +19,19 @@ class FTC_Utils {
     const FTCTOPTEN_ENTITY_ID = 51;
 
     /**
+     * Generate a cryptographically secure password.
+     *
+     * @param int $length Desired length.
+     *
+     * @return string
+     */
+    public static function random_password( $length = 12 ) {
+        $length = max( 1, (int) $length );
+
+        return wp_generate_password( $length, true, true );
+    }
+
+    /**
      * Generate a UUID v4 string.
      *
      * @return string
@@ -225,5 +238,55 @@ class FTC_Utils {
         $id          = isset( $map[ $wc_currency ] ) ? $map[ $wc_currency ] : 2;
 
         return (int) apply_filters( 'ftc_topten_map_mone_id', $id, $wc_currency );
+    }
+
+    /**
+     * Normalise a date/time string and return null when empty or invalid.
+     *
+     * @param mixed  $value  Raw value.
+     * @param string $format Output format (defaults to Y-m-d).
+     *
+     * @return string|null
+     */
+    public static function normalize_datetime_nullable( $value, $format = 'Y-m-d' ) {
+        if ( ! is_scalar( $value ) ) {
+            return null;
+        }
+
+        $value = trim( (string) $value );
+        if ( '' === $value ) {
+            return null;
+        }
+
+        $timestamp = strtotime( $value );
+        if ( false === $timestamp ) {
+            return null;
+        }
+
+        return gmdate( $format, $timestamp );
+    }
+
+    /**
+     * Generate a stable hash for an identity value (email, document, etc.).
+     *
+     * @param mixed $value Raw identifier.
+     *
+     * @return string
+     */
+    public static function hash_identity( $value ) {
+        if ( ! is_scalar( $value ) ) {
+            return '';
+        }
+
+        $raw = trim( (string) $value );
+        if ( '' === $raw ) {
+            return '';
+        }
+
+        if ( is_email( $raw ) ) {
+            return md5( strtolower( $raw ) );
+        }
+
+        return hash( 'sha256', strtolower( $raw ) );
     }
 }
