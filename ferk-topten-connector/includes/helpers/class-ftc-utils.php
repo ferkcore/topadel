@@ -109,107 +109,70 @@ class FTC_Utils {
     }
 
     /**
-     * Generate random password.
+     * Resolve TopTen product ID from WooCommerce product.
      *
-     * @param int $length Length.
+     * @param \WC_Product $product Product instance.
      *
-     * @return string
+     * @return int|null
      */
-    public static function random_password( $length = 24 ) {
-        $length = max( 8, (int) $length );
+    public static function resolve_topten_product_id( \WC_Product $product ) {
+        $meta_key = apply_filters( 'ftc_topten_product_meta_key', '_ftc_topten_prod_id', $product );
+        $meta     = get_post_meta( $product->get_id(), $meta_key, true );
 
-        return wp_generate_password( $length, true, true );
-    }
-
-    /**
-     * Hash identity (email) for lookup.
-     *
-     * @param string $email Email.
-     *
-     * @return string
-     */
-    public static function hash_identity( $email ) {
-        $normalized = trim( (string) $email );
-        if ( function_exists( 'mb_strtolower' ) ) {
-            $normalized = mb_strtolower( $normalized, 'UTF-8' );
-        } else {
-            $normalized = strtolower( $normalized );
+        if ( is_numeric( $meta ) && (int) $meta > 0 ) {
+            return (int) $meta;
         }
 
-        return sha1( $normalized );
+        $db  = \FTC_Plugin::instance()->db();
+        $map = $db ? $db->find_map( 'product', (int) $product->get_id() ) : null;
+
+        if ( $map && ! empty( $map['external_id'] ) && is_numeric( $map['external_id'] ) ) {
+            return (int) $map['external_id'];
+        }
+
+        $sku = (string) $product->get_sku();
+        $mapped = apply_filters( 'ftc_topten_resolve_prod_id_by_sku', null, $sku, $product );
+        if ( is_numeric( $mapped ) && (int) $mapped > 0 ) {
+            return (int) $mapped;
+        }
+
+        return null;
     }
 
     /**
-     * Split raw phone into DDI and local number.
+     * Resolve chosen terms for order item.
      *
-     * @param string $raw_phone Raw phone.
-     * @param string $country   Country ISO2.
+     * @param \WC_Product            $product Product.
+     * @param \WC_Order_Item_Product $item    Order item.
      *
      * @return array
      */
-    public static function split_phone( $raw_phone, $country ) {
-        $raw_phone = trim( (string) $raw_phone );
-        $country   = strtoupper( trim( (string) $country ) );
+    public static function resolve_chosen_terms_for_item( \WC_Product $product, \WC_Order_Item_Product $item ) {
+        $text_parts = array();
+        $terms_ids  = array();
 
-        if ( '' === $raw_phone ) {
-            return array( '', '' );
-        }
+        if ( $product->is_type( 'variation' ) ) {
+            $parent = wc_get_product( $product->get_parent_id() );
+            $attrs  = $product->get_attributes();
 
-        $clean = preg_replace( '/[\s\-\(\)]/', '', $raw_phone );
+            foreach ( $attrs as $attr_key => $attr_val ) {
+                $label = wc_attribute_label( str_replace( 'attribute_', '', $attr_key ), $parent );
+                $text_parts[] = sprintf( '%s: %s', $label, $attr_val );
 
-        if ( 0 === strpos( $clean, '+' ) ) {
-            if ( preg_match( '/^\+(\d{1,4})(\d*)$/', $clean, $matches ) ) {
-                $ddi   = '+' . $matches[1];
-                $local = $matches[2];
-
-                return array( $ddi, $local );
+                $maybe_ids = apply_filters( 'ftc_topten_map_chosen_terms', array(), $attr_key, $attr_val, $product, $item );
+                if ( is_array( $maybe_ids ) ) {
+                    foreach ( $maybe_ids as $id ) {
+                        if ( is_numeric( $id ) ) {
+                            $terms_ids[] = (int) $id;
+                        }
+                    }
+                }
             }
         }
 
-        $map = apply_filters(
-            'ftc_topten_country_ddi_map',
-            array(
-                'UY' => '+598',
-                'AR' => '+54',
-                'BR' => '+55',
-            )
-        );
+        $chosen_text   = ! empty( $text_parts ) ? implode( ', ', $text_parts ) : null;
+        $chosen_ids_csv = ! empty( $terms_ids ) ? implode( ',', $terms_ids ) : null;
 
-        $ddi = isset( $map[ $country ] ) ? (string) $map[ $country ] : '';
-        $local = preg_replace( '/\D+/', '', $clean );
-
-        return array( $ddi, $local );
-    }
-
-    /**
-     * Normalise date/datetime to ISO8601 without timezone.
-     *
-     * @param mixed $value Value.
-     *
-     * @return string|null
-     */
-    public static function normalize_datetime_nullable( $value ) {
-        if ( null === $value ) {
-            return null;
-        }
-
-        $value = trim( (string) $value );
-        if ( '' === $value ) {
-            return null;
-        }
-
-        if ( is_numeric( $value ) ) {
-            $timestamp = (int) $value;
-            if ( $timestamp > 0 && $timestamp < 10000000000 ) {
-                return gmdate( 'Y-m-d\TH:i:s', $timestamp );
-            }
-        }
-
-        $parsed = strtotime( $value );
-        if ( false === $parsed ) {
-            return null;
-        }
-
-        return gmdate( 'Y-m-d\TH:i:s', $parsed );
+        return array( $chosen_ids_csv, $chosen_text );
     }
 }

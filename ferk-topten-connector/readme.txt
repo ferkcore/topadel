@@ -3,7 +3,7 @@ Contributors: ferk
 Tags: woocommerce, payments, gateway
 Requires at least: 6.0
 Tested up to: 6.5
-Stable tag: 0.2.1
+Stable tag: 0.2.2
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -27,10 +27,10 @@ Sí, debes solicitar credenciales a tu equipo de TopTen.
 Usa el botón "Testear conexión" en la pestaña de herramientas para verificar la comunicación con la API.
 
 == Changelog ==
-= 0.2.1 =
-* Integración real con el endpoint NewRegister para crear/obtener usuarios TopTen.
-* Asociación automática del usuario TopTen en el flujo del gateway GetNet.
-* Herramienta administrativa para probar la creación de usuarios en sandbox.
+= 0.2.2 =
+* Implementa el endpoint AddCartProductExternal para crear carritos en TopTen y reutilizarlos en el checkout.
+* Añade utilidades para mapear Prod_Id y atributos de productos hacia TopTen.
+* Mejora las herramientas de administración con prueba de creación de carrito y enlaces al backoffice.
 
 = 0.2.0 =
 * Versión inicial del conector con integración básica de clientes, carritos y pagos.

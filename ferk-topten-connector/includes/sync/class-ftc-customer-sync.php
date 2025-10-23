@@ -50,20 +50,20 @@ class FTC_Customer_Sync {
      * @throws Exception When creation fails.
      */
     public function get_or_create_topten_user_from_order( $order ) {
-        $wc_user_id = (int) $order->get_user_id();
-        $email      = sanitize_email( $order->get_billing_email() );
+        $user_id      = $order->get_user_id();
+        $email        = $order->get_billing_email();
+        $hash         = $email ? md5( strtolower( $email ) ) : '';
+        $wc_identifier = $user_id ? (int) $user_id : $this->get_guest_identifier( $email );
 
-        $map = $this->db->find_map( 'customer', $wc_user_id > 0 ? $wc_user_id : 0, $email );
+        $db  = FTC_Plugin::instance()->db();
+        $map = $db ? $db->find_map( 'customer', $wc_identifier, $email ) : null;
+
         if ( $map && ! empty( $map['external_id'] ) ) {
-            return (string) $map['external_id'];
+            $order->update_meta_data( '_ftc_topten_user_id', $map['external_id'] );
+            $order->save();
+
+            return $map['external_id'];
         }
-
-        $first   = wc_clean( $order->get_billing_first_name() );
-        $last    = wc_clean( $order->get_billing_last_name() );
-        $phone   = wc_clean( $order->get_billing_phone() );
-        $country = wc_strtoupper( wc_clean( $order->get_billing_country() ) );
-
-        list($ddi, $local_phone) = FTC_Utils::split_phone( $phone, $country );
 
         $doc_type = apply_filters( 'ftc_topten_document_type', (string) $order->get_meta( '_billing_document_type' ) );
         $doc_num  = apply_filters( 'ftc_topten_document_number', (string) $order->get_meta( '_billing_document' ) );
@@ -78,24 +78,17 @@ class FTC_Customer_Sync {
             throw new Exception( 'Correo inválido para NewRegister' );
         }
 
-        $payload = array_filter(
-            array(
-                'Nombre'             => $first ? $first : null,
-                'Apellido'           => $last ? $last : null,
-                'Correo'             => $email,
-                'Clave'              => $password,
-                'Telefono'           => $local_phone ? $local_phone : null,
-                'TipoDocumento'      => $doc_type ? $doc_type : null,
-                'Documento'          => $doc_num ? $doc_num : null,
-                'IndicativoTelefono' => $ddi ? $ddi : null,
-                'Enti_Id'            => apply_filters( 'ftc_topten_entity_id', self::FTCTOPTEN_ENTITY_ID ),
-                'FechaCumple'        => $birth_iso ? $birth_iso : null,
-                'ExternalId'         => $external_id,
-            ),
-            static function( $value ) {
-                return null !== $value && '' !== $value;
-            }
-        );
+        if ( $db ) {
+            $db->upsert_map(
+                'customer',
+                $wc_identifier ? $wc_identifier : 0,
+                $external_id,
+                array(
+                    'hash'      => $hash,
+                    'data_json' => $data_json,
+                )
+            );
+        }
 
         $client = FTC_Plugin::instance()->client();
         $id     = (int) $client->create_user_newregister( $payload );

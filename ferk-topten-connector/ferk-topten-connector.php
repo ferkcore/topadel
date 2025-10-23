@@ -29,7 +29,7 @@ define( 'FTC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 }
 
 if ( ! defined( 'FTC_PLUGIN_VERSION' ) ) {
-define( 'FTC_PLUGIN_VERSION', '0.2.1' );
+define( 'FTC_PLUGIN_VERSION', '0.2.2' );
 }
 
 /**
