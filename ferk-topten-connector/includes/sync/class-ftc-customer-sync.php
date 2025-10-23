@@ -25,32 +25,19 @@ class FTC_Customer_Sync {
      * @throws Exception When creation fails.
      */
     public function get_or_create_topten_user_from_order( $order ) {
-        global $wpdb;
-
-        $table        = $wpdb->prefix . 'ftc_maps';
         $user_id      = $order->get_user_id();
         $email        = $order->get_billing_email();
         $hash         = $email ? md5( strtolower( $email ) ) : '';
         $wc_identifier = $user_id ? (int) $user_id : $this->get_guest_identifier( $email );
 
-        if ( $wc_identifier ) {
-            $row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE entity_type = %s AND wc_id = %d", 'customer', $wc_identifier ), ARRAY_A );
-            if ( $row && ! empty( $row['external_id'] ) ) {
-                $order->update_meta_data( '_ftc_topten_user_id', $row['external_id'] );
-                $order->save();
+        $db  = FTC_Plugin::instance()->db();
+        $map = $db ? $db->find_map( 'customer', $wc_identifier, $email ) : null;
 
-                return $row['external_id'];
-            }
-        }
+        if ( $map && ! empty( $map['external_id'] ) ) {
+            $order->update_meta_data( '_ftc_topten_user_id', $map['external_id'] );
+            $order->save();
 
-        if ( $hash ) {
-            $row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE entity_type = %s AND hash = %s", 'customer', $hash ), ARRAY_A );
-            if ( $row && ! empty( $row['external_id'] ) ) {
-                $order->update_meta_data( '_ftc_topten_user_id', $row['external_id'] );
-                $order->save();
-
-                return $row['external_id'];
-            }
+            return $map['external_id'];
         }
 
         $client  = FTC_Plugin::instance()->get_client_from_order( $order );
@@ -79,27 +66,17 @@ class FTC_Customer_Sync {
         $external_id = $response['id'];
         $data_json   = wp_json_encode( $response );
 
-        $wpdb->replace(
-            $table,
-            array(
-                'entity_type' => 'customer',
-                'wc_id'       => $wc_identifier ? $wc_identifier : 0,
-                'external_id' => $external_id,
-                'hash'        => $hash,
-                'data_json'   => $data_json,
-                'created_at'  => current_time( 'mysql', true ),
-                'updated_at'  => current_time( 'mysql', true ),
-            ),
-            array(
-                '%s',
-                '%d',
-                '%s',
-                '%s',
-                '%s',
-                '%s',
-                '%s',
-            )
-        );
+        if ( $db ) {
+            $db->upsert_map(
+                'customer',
+                $wc_identifier ? $wc_identifier : 0,
+                $external_id,
+                array(
+                    'hash'      => $hash,
+                    'data_json' => $data_json,
+                )
+            );
+        }
 
         $order->update_meta_data( '_ftc_topten_user_id', $external_id );
         $order->save();

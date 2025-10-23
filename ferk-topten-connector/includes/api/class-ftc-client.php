@@ -16,10 +16,11 @@ require_once FTC_PLUGIN_DIR . 'includes/helpers/class-ftc-logger.php';
  * HTTP client for TopTen API.
  */
 class FTC_Client {
-    const PATH_USERS    = '/users';
-    const PATH_CARTS    = '/carts';
-    const PATH_PAYMENTS = '/payments';
-    const PATH_HEALTH   = '/health';
+    const PATH_USERS             = '/users';
+    const PATH_CARTS             = '/carts';
+    const PATH_PAYMENTS          = '/payments';
+    const PATH_HEALTH            = '/health';
+    const PATH_ADD_CART_EXTERNAL = '/api/Cart/AddCartProductExternal';
 
     /**
      * Configuration array.
@@ -158,6 +159,64 @@ class FTC_Client {
     }
 
     /**
+     * Create cart using AddCartProductExternal endpoint.
+     *
+     * @param array $payload Payload to send.
+     * @param array $args    Optional arguments.
+     *
+     * @return int
+     * @throws \Exception When response is invalid or transport fails.
+     */
+    public function create_cart_external( array $payload, array $args = array() ) {
+        $path    = self::PATH_ADD_CART_EXTERNAL;
+        $headers = $this->build_headers(
+            array(
+                'Content-Type' => 'application/json',
+            ),
+            $args
+        );
+
+        $body     = wp_json_encode( $payload, JSON_UNESCAPED_UNICODE );
+        $endpoint = rtrim( $this->base_url( $args ), '/' ) . '/' . ltrim( $path, '/' );
+
+        $response = wp_remote_post(
+            $endpoint,
+            array(
+                'headers' => $headers,
+                'timeout' => $this->timeout( $args ),
+                'body'    => $body,
+            )
+        );
+
+        if ( is_wp_error( $response ) ) {
+            throw new \Exception( 'TopTen create_cart transport error: ' . $response->get_error_message() );
+        }
+
+        $raw = wp_remote_retrieve_body( $response );
+
+        $cart_id = null;
+        $trimmed = is_string( $raw ) ? trim( $raw ) : '';
+        if ( '' !== $trimmed && is_numeric( $trimmed ) ) {
+            $cart_id = (int) $trimmed;
+        } else {
+            $decoded = json_decode( $raw, true );
+            if ( is_int( $decoded ) ) {
+                $cart_id = $decoded;
+            } elseif ( is_numeric( $decoded ) ) {
+                $cart_id = (int) $decoded;
+            } elseif ( is_array( $decoded ) && isset( $decoded['value'] ) && is_numeric( $decoded['value'] ) ) {
+                $cart_id = (int) $decoded['value'];
+            }
+        }
+
+        if ( ! is_int( $cart_id ) ) {
+            throw new \Exception( 'TopTen create_cart unexpected response: ' . $raw );
+        }
+
+        return $cart_id;
+    }
+
+    /**
      * Create payment.
      *
      * @param array $payload Payload.
@@ -202,5 +261,102 @@ class FTC_Client {
         }
 
         return FTC_Utils::array_get( $this->config, 'base_url_production', '' );
+    }
+
+    /**
+     * Build headers for request.
+     *
+     * @param array $extra Extra headers.
+     * @param array $args  Optional args.
+     *
+     * @return array
+     */
+    protected function build_headers( $extra = array(), $args = array() ) {
+        $headers = array_merge(
+            array(
+                'Content-Type' => 'application/json',
+            ),
+            is_array( $extra ) ? $extra : array()
+        );
+
+        $credentials = $this->credentials( $args );
+
+        if ( ! empty( $credentials['api_key'] ) ) {
+            $headers['Authorization'] = 'Bearer ' . $credentials['api_key'];
+        }
+
+        return apply_filters( 'ftc_client_headers', $headers, $args, $this );
+    }
+
+    /**
+     * Resolve base URL for a request.
+     *
+     * @param array $args Optional args.
+     *
+     * @return string
+     */
+    protected function base_url( $args = array() ) {
+        $credentials = $this->credentials( $args );
+        $sandbox     = $this->is_sandbox( $credentials, $args );
+
+        $base = $sandbox ? FTC_Utils::array_get( $credentials, 'base_url_sandbox', '' ) : FTC_Utils::array_get( $credentials, 'base_url_production', '' );
+
+        $base = apply_filters( 'ftc_client_base_url', $base, $sandbox, $args, $this );
+
+        if ( empty( $base ) ) {
+            throw new \Exception( __( 'Base URL no configurada.', 'ferk-topten-connector' ) );
+        }
+
+        return untrailingslashit( $base );
+    }
+
+    /**
+     * Resolve credentials merged with overrides.
+     *
+     * @param array $args Optional args.
+     *
+     * @return array
+     */
+    protected function credentials( $args = array() ) {
+        $credentials = $this->config;
+
+        if ( isset( $args['credentials'] ) && is_array( $args['credentials'] ) ) {
+            $credentials = wp_parse_args( $args['credentials'], $credentials );
+        }
+
+        return $credentials;
+    }
+
+    /**
+     * Determine if sandbox should be used.
+     *
+     * @param array $credentials Credentials.
+     * @param array $args        Optional args.
+     *
+     * @return bool
+     */
+    protected function is_sandbox( $credentials, $args = array() ) {
+        if ( isset( $args['sandbox'] ) ) {
+            return (bool) $args['sandbox'];
+        }
+
+        $sandbox = FTC_Utils::array_get( $credentials, 'sandbox', 'yes' );
+
+        return 'yes' === $sandbox || true === $sandbox;
+    }
+
+    /**
+     * Resolve timeout value.
+     *
+     * @param array $args Optional args.
+     *
+     * @return int
+     */
+    protected function timeout( $args = array() ) {
+        if ( isset( $args['timeout'] ) && is_numeric( $args['timeout'] ) ) {
+            return max( 5, (int) $args['timeout'] );
+        }
+
+        return ! empty( $this->config['timeout'] ) ? (int) $this->config['timeout'] : 30;
     }
 }

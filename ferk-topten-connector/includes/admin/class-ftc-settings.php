@@ -34,6 +34,7 @@ class FTC_Settings {
         add_action( 'admin_init', array( $this, 'register_settings' ) );
         add_action( 'wp_ajax_ftc_test_connection', array( $this, 'ajax_test_connection' ) );
         add_action( 'wp_ajax_ftc_export_logs', array( $this, 'ajax_export_logs' ) );
+        add_action( 'admin_post_ftc_test_create_cart', array( $this, 'handle_test_create_cart' ) );
     }
 
     /**
@@ -204,6 +205,87 @@ class FTC_Settings {
             );
         }
         fclose( $output );
+        exit;
+    }
+
+    /**
+     * Handle sandbox cart creation test.
+     */
+    public function handle_test_create_cart() {
+        if ( ! current_user_can( self::CAPABILITY ) ) {
+            wp_die( esc_html__( 'Permission denied.', 'ferk-topten-connector' ) );
+        }
+
+        check_admin_referer( 'ftc_tools_create_cart', 'ftc_tools_create_cart_nonce' );
+
+        $user_id = isset( $_POST['ftc_tool_user_id'] ) ? absint( wp_unslash( $_POST['ftc_tool_user_id'] ) ) : 0;
+        $prod_id = isset( $_POST['ftc_tool_prod_id'] ) ? absint( wp_unslash( $_POST['ftc_tool_prod_id'] ) ) : 0;
+        $qty     = isset( $_POST['ftc_tool_qty'] ) ? absint( wp_unslash( $_POST['ftc_tool_qty'] ) ) : 1;
+
+        $redirect = add_query_arg(
+            array(
+                'page' => 'ftc-settings',
+                'tab'  => 'tools',
+            ),
+            admin_url( 'admin.php' )
+        );
+
+        if ( $user_id <= 0 || $prod_id <= 0 ) {
+            $redirect = add_query_arg(
+                array(
+                    'ftc_cart_tool'         => 'error',
+                    'ftc_cart_tool_message' => rawurlencode( __( 'Debes ingresar un usuario y producto de prueba válidos.', 'ferk-topten-connector' ) ),
+                ),
+                $redirect
+            );
+            wp_safe_redirect( $redirect );
+            exit;
+        }
+
+        $qty = max( 1, $qty );
+
+        $settings    = get_option( self::OPTION_NAME, self::get_defaults() );
+        $credentials = isset( $settings['credentials'] ) ? $settings['credentials'] : self::get_defaults()['credentials'];
+        $credentials['sandbox'] = 'yes';
+
+        $client = FTC_Plugin::instance()->client( $credentials );
+
+        $payload = array(
+            'Usua_Cod'     => $user_id,
+            'CartProducts' => array(
+                array(
+                    'Prod_Id'  => $prod_id,
+                    'Quantity' => $qty,
+                ),
+            ),
+        );
+
+        try {
+            $cart_id = (int) $client->create_cart_external( $payload, array( 'sandbox' => true ) );
+
+            if ( $cart_id <= 0 ) {
+                throw new Exception( 'TopTen AddCartProductExternal retornó 0.' );
+            }
+
+            $redirect = add_query_arg(
+                array(
+                    'ftc_cart_tool'    => 'success',
+                    'ftc_cart_tool_id' => $cart_id,
+                ),
+                $redirect
+            );
+        } catch ( Exception $e ) {
+            FTC_Logger::instance()->error( 'tools', 'sandbox_cart_failed', array( 'error' => $e->getMessage() ) );
+            $redirect = add_query_arg(
+                array(
+                    'ftc_cart_tool'         => 'error',
+                    'ftc_cart_tool_message' => rawurlencode( $e->getMessage() ),
+                ),
+                $redirect
+            );
+        }
+
+        wp_safe_redirect( $redirect );
         exit;
     }
 }

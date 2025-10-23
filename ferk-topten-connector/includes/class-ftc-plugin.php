@@ -71,6 +71,20 @@ class FTC_Plugin {
     protected $gateway_instance = null;
 
     /**
+     * Database helper instance.
+     *
+     * @var FTC_DB|null
+     */
+    protected $db_instance = null;
+
+    /**
+     * Cart sync instance.
+     *
+     * @var FTC_Cart_Sync|null
+     */
+    protected $cart_sync_instance = null;
+
+    /**
      * Missing dependencies.
      *
      * @var array
@@ -272,6 +286,17 @@ class FTC_Plugin {
     }
 
     /**
+     * Alias for get_client.
+     *
+     * @param array|null $credentials Credentials override.
+     *
+     * @return FTC_Client
+     */
+    public function client( $credentials = null ) {
+        return $this->get_client( $credentials );
+    }
+
+    /**
      * Get client configured for a specific order.
      *
      * @param WC_Order $order Order.
@@ -286,6 +311,32 @@ class FTC_Plugin {
         }
 
         return new FTC_Client( $credentials );
+    }
+
+    /**
+     * Get database helper instance.
+     *
+     * @return FTC_DB
+     */
+    public function db() {
+        if ( null === $this->db_instance ) {
+            $this->db_instance = new FTC_DB();
+        }
+
+        return $this->db_instance;
+    }
+
+    /**
+     * Get cart sync instance.
+     *
+     * @return FTC_Cart_Sync
+     */
+    public function cart_sync() {
+        if ( null === $this->cart_sync_instance ) {
+            $this->cart_sync_instance = new FTC_Cart_Sync();
+        }
+
+        return $this->cart_sync_instance;
     }
 
     /**
@@ -311,7 +362,7 @@ class FTC_Plugin {
      */
     public function recreate_payment_for_order( $order ) {
         $customer_sync = new FTC_Customer_Sync();
-        $cart_sync     = new FTC_Cart_Sync();
+        $cart_sync     = $this->cart_sync();
         $user_id       = $customer_sync->get_or_create_topten_user_from_order( $order );
         $cart_id       = $cart_sync->create_topten_cart_from_order( $order, $user_id );
 

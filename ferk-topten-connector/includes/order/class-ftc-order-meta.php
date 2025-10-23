@@ -21,6 +21,7 @@ class FTC_Order_Meta {
         add_filter( 'manage_edit-shop_order_columns', array( $this, 'add_order_columns' ) );
         add_action( 'manage_shop_order_posts_custom_column', array( $this, 'render_order_columns' ), 10, 2 );
         add_action( 'admin_post_ftc_retry_payment', array( $this, 'handle_retry_payment' ) );
+        add_action( 'admin_notices', array( $this, 'maybe_show_missing_products_notice' ) );
     }
 
     /**
@@ -56,7 +57,17 @@ class FTC_Order_Meta {
 
         ?>
         <p><strong><?php esc_html_e( 'Usuario TopTen:', 'ferk-topten-connector' ); ?></strong> <?php echo esc_html( $user_id ? $user_id : '—' ); ?></p>
-        <p><strong><?php esc_html_e( 'Carrito TopTen:', 'ferk-topten-connector' ); ?></strong> <?php echo esc_html( $cart_id ? $cart_id : '—' ); ?></p>
+        <p><strong><?php esc_html_e( 'TopTen Cart ID:', 'ferk-topten-connector' ); ?></strong> <?php echo esc_html( $cart_id ? $cart_id : '—' ); ?></p>
+        <?php
+        if ( $cart_id ) {
+            $cart_url = apply_filters( 'ftc_topten_backoffice_cart_url', '', $cart_id, $order );
+            if ( $cart_url ) {
+                ?>
+                <p><a class="button button-secondary" href="<?php echo esc_url( $cart_url ); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'Abrir carrito en TopTen', 'ferk-topten-connector' ); ?></a></p>
+                <?php
+            }
+        }
+        ?>
         <p><strong><?php esc_html_e( 'Pago TopTen:', 'ferk-topten-connector' ); ?></strong> <?php echo esc_html( $payment_id ? $payment_id : '—' ); ?></p>
         <p><strong><?php esc_html_e( 'Estado pago TopTen:', 'ferk-topten-connector' ); ?></strong> <?php echo esc_html( $status ? $status : '—' ); ?></p>
         <?php if ( $payment_url ) : ?>
@@ -153,5 +164,54 @@ class FTC_Order_Meta {
 
         wp_safe_redirect( $redirect );
         exit;
+    }
+
+    /**
+     * Maybe show notice when products require mapping.
+     */
+    public function maybe_show_missing_products_notice() {
+        if ( ! current_user_can( 'manage_woocommerce' ) ) {
+            return;
+        }
+
+        $order_id = isset( $_GET['post'] ) ? absint( wp_unslash( $_GET['post'] ) ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        if ( ! $order_id ) {
+            return;
+        }
+
+        if ( 'shop_order' !== get_post_type( $order_id ) ) {
+            return;
+        }
+
+        $order = wc_get_order( $order_id );
+        if ( ! $order ) {
+            return;
+        }
+
+        $missing = $order->get_meta( '_ftc_topten_missing_products', true );
+        if ( empty( $missing ) || ! is_array( $missing ) ) {
+            return;
+        }
+
+        $items_html = '<ul>';
+        foreach ( $missing as $product_id => $name ) {
+            $items_html .= '<li>' . esc_html( sprintf( '%s (ID %d)', $name, $product_id ) ) . '</li>';
+        }
+        $items_html .= '</ul>';
+
+        $first_product = null;
+        $first_id      = array_key_first( $missing );
+        if ( $first_id ) {
+            $first_product = wc_get_product( $first_id );
+        }
+
+        $meta_key = apply_filters( 'ftc_topten_product_meta_key', '_ftc_topten_prod_id', $first_product );
+
+        printf(
+            '<div class="notice notice-warning"><p>%1$s</p>%2$s<p>%3$s</p></div>',
+            esc_html__( 'Algunos productos no tienen asignado el Prod_Id de TopTen.', 'ferk-topten-connector' ),
+            wp_kses_post( $items_html ),
+            esc_html( sprintf( 'Agrega el meta "%1$s" en el producto o implementa los filtros "ftc_topten_resolve_prod_id_by_sku" / "ftc_topten_map_chosen_terms" para resolverlos dinámicamente.', $meta_key ) )
+        );
     }
 }
