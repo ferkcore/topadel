@@ -71,6 +71,29 @@ if ( ! isset( $tabs[ $current_tab ] ) ) {
                             </td>
                         </tr>
                         <tr>
+                            <th scope="row"><?php esc_html_e( 'Auth Username', 'ferk-topten-connector' ); ?></th>
+                            <td>
+                                <input type="text" class="regular-text" name="ftc_auth_user" id="ftc-auth-user" value="<?php echo esc_attr( $auth_credentials['user'] ); ?>" autocomplete="off" />
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><?php esc_html_e( 'Auth Password', 'ferk-topten-connector' ); ?></th>
+                            <td>
+                                <div class="ftc-password-field">
+                                    <input type="password" class="regular-text" name="ftc_auth_pass" id="ftc-auth-pass" value="<?php echo esc_attr( $auth_credentials['pass'] ); ?>" autocomplete="new-password" />
+                                    <button type="button" class="button button-secondary ftc-toggle-password" data-target="#ftc-auth-pass" data-label-show="<?php esc_attr_e( 'Mostrar contraseña', 'ferk-topten-connector' ); ?>" data-label-hide="<?php esc_attr_e( 'Ocultar contraseña', 'ferk-topten-connector' ); ?>" aria-pressed="false" aria-label="<?php esc_attr_e( 'Mostrar contraseña', 'ferk-topten-connector' ); ?>">👁</button>
+                                </div>
+                                <p class="description"><?php esc_html_e( 'Este password nunca se mostrará en registros ni logs.', 'ferk-topten-connector' ); ?></p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row"><?php esc_html_e( 'Enti_Id', 'ferk-topten-connector' ); ?></th>
+                            <td>
+                                <input type="number" min="1" class="small-text" name="ftc_auth_enti_id" id="ftc-auth-enti" value="<?php echo esc_attr( (int) $auth_credentials['enti'] ); ?>" />
+                                <p class="description"><?php esc_html_e( 'Identificador de entidad provisto por TopTen. Predeterminado: 51.', 'ferk-topten-connector' ); ?></p>
+                            </td>
+                        </tr>
+                        <tr>
                             <th scope="row"><?php esc_html_e( 'Webhook Secret', 'ferk-topten-connector' ); ?></th>
                             <td>
                                 <input type="password" class="regular-text" name="ftc_settings[credentials][webhook_secret]" value="<?php echo esc_attr( FTC_Utils::array_get( $settings, 'credentials.webhook_secret', '' ) ); ?>" autocomplete="off" />
@@ -142,6 +165,13 @@ if ( ! isset( $tabs[ $current_tab ] ) ) {
                     </button>
                     <span class="spinner" id="ftc-test-spinner"></span>
                     <span id="ftc-test-result" class="ftc-test-message" aria-live="polite"></span>
+                </p>
+                <p>
+                    <button type="button" class="button button-secondary" id="ftc-test-auth">
+                        <?php esc_html_e( 'Probar Auth (GetToken)', 'ferk-topten-connector' ); ?>
+                    </button>
+                    <span class="spinner" id="ftc-test-auth-spinner"></span>
+                    <span id="ftc-test-auth-result" class="ftc-test-message" aria-live="polite"></span>
                 </p>
                 <p>
                     <button type="button" class="button button-secondary" id="ftc-test-user">

@@ -3,7 +3,7 @@ Contributors: ferk
 Tags: woocommerce, payments, gateway
 Requires at least: 6.0
 Tested up to: 6.5
-Stable tag: 0.2.4
+Stable tag: 0.3.0
 Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -12,6 +12,8 @@ Integración de WooCommerce con la plataforma TopTen para procesar pagos mediant
 
 == Descripción ==
 Ferk Topten Connector agrega un gateway de pago "GetNet (TopTen)" y sincroniza clientes y carritos entre WooCommerce y la plataforma TopTen.
+
+Desde la versión 0.3.0 puedes autenticarte mediante tokens obtenidos con el endpoint `POST /api/Account/GetToken`. Configura el **Auth Username**, **Auth Password** y **Enti_Id** desde la pestaña de credenciales; estos valores también alimentan al gateway de GetNet. Cuando una llamada requiere autenticación se prioriza el encabezado `Authorization: Bearer {token}` y, si es necesario, se envía la API Key como `X-Api-Key`.
 
 == Instalación ==
 1. Sube la carpeta del plugin a `wp-content/plugins/` o instala el ZIP desde el administrador de WordPress.
@@ -26,7 +28,16 @@ Sí, debes solicitar credenciales a tu equipo de TopTen.
 = ¿Cómo pruebo la conexión? =
 Usa el botón "Testear conexión" en la pestaña de herramientas para verificar la comunicación con la API.
 
+= ¿Cómo pruebo la autenticación por token? =
+En la pestaña de herramientas encontrarás el botón "Probar Auth (GetToken)". Ejecuta una solicitud REST segura que renueva el token inmediatamente y muestra los primeros caracteres y tiempo restante antes de expirar.
+
 == Changelog ==
+= 0.3.0 =
+* Añade autenticación por token con caché y renovación automática para solicitudes con `use_token`.
+* Incorpora campos de Auth Username, Auth Password y Enti_Id en ajustes, junto con prueba manual del endpoint GetToken.
+* Programa una tarea recurrente (Action Scheduler o WP-Cron) que renueva el token silenciosamente antes de su expiración.
+* Expone helper `get_products()` para preparar futuras consultas autenticadas a productos.
+
 = 0.2.4 =
 * Añade webhook de confirmación de pago con validación de firma, manejo de retorno y mapeo robusto de estados.
 * Muestra las URLs de webhook y retorno en ajustes, agrega botón de copia y permite configurar callback por pago.
