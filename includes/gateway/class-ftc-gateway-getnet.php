@@ -137,10 +137,6 @@ class FTC_Gateway_Getnet extends WC_Payment_Gateway {
         }
 
         $config = $this->get_gateway_config();
-        if ( empty( $config['api_key'] ) ) {
-            return false;
-        }
-
         $base_url = ( 'yes' === $config['sandbox'] ) ? $config['base_url_sandbox'] : $config['base_url_production'];
         if ( empty( $base_url ) ) {
             return false;
@@ -387,7 +383,6 @@ class FTC_Gateway_Getnet extends WC_Payment_Gateway {
             'sandbox'             => isset( $credentials['sandbox'] ) ? $credentials['sandbox'] : 'yes',
             'base_url_sandbox'    => isset( $credentials['base_url_sandbox'] ) ? $credentials['base_url_sandbox'] : '',
             'base_url_production' => isset( $credentials['base_url_production'] ) ? $credentials['base_url_production'] : '',
-            'api_key'             => isset( $credentials['api_key'] ) ? $credentials['api_key'] : '',
             'webhook_secret'      => isset( $credentials['webhook_secret'] ) ? $credentials['webhook_secret'] : '',
             'timeout'             => isset( $credentials['timeout'] ) ? $credentials['timeout'] : 30,
             'retries'             => isset( $credentials['retries'] ) ? $credentials['retries'] : 3,

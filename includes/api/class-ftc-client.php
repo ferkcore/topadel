@@ -512,14 +512,6 @@ class FTC_Client {
             $headers['Content-Type'] = 'application/json';
         }
 
-        $credentials = $this->credentials( $args );
-        $use_api_key = array_key_exists( 'use_api_key', $args ) ? (bool) $args['use_api_key'] : true;
-        $api_key = isset( $credentials['api_key'] ) ? (string) $credentials['api_key'] : '';
-
-        if ( $use_api_key && '' !== $api_key && empty( $headers['Authorization'] ) ) {
-            $headers['Authorization'] = 'Bearer ' . $api_key;
-        }
-
         return apply_filters( 'ftc_client_headers', $headers, $args, $this );
     }
 

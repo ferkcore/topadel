@@ -65,12 +65,6 @@ if ( ! isset( $tabs[ $current_tab ] ) ) {
                             </td>
                         </tr>
                         <tr>
-                            <th scope="row"><?php esc_html_e( 'API Key', 'ferk-topten-connector' ); ?></th>
-                            <td>
-                                <input type="password" class="regular-text" name="ftc_settings[credentials][api_key]" value="<?php echo esc_attr( FTC_Utils::array_get( $settings, 'credentials.api_key', '' ) ); ?>" autocomplete="off" />
-                            </td>
-                        </tr>
-                        <tr>
                             <th scope="row"><?php esc_html_e( 'Webhook Secret', 'ferk-topten-connector' ); ?></th>
                             <td>
                                 <input type="password" class="regular-text" name="ftc_settings[credentials][webhook_secret]" value="<?php echo esc_attr( FTC_Utils::array_get( $settings, 'credentials.webhook_secret', '' ) ); ?>" autocomplete="off" />
