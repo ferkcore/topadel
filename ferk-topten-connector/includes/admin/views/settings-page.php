@@ -123,14 +123,30 @@ if ( ! isset( $tabs[ $current_tab ] ) ) {
                     <button type="submit" class="button button-secondary"><?php esc_html_e( 'Exportar logs CSV', 'ferk-topten-connector' ); ?></button>
                 </form>
                 <?php
-                $tool_status  = isset( $_GET['ftc_cart_tool'] ) ? sanitize_key( wp_unslash( $_GET['ftc_cart_tool'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-                $tool_message = isset( $_GET['ftc_cart_tool_message'] ) ? sanitize_text_field( wp_unslash( $_GET['ftc_cart_tool_message'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-                $tool_cart_id = isset( $_GET['ftc_cart_tool_id'] ) ? absint( wp_unslash( $_GET['ftc_cart_tool_id'] ) ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+                $tool_status          = isset( $_GET['ftc_cart_tool'] ) ? sanitize_key( wp_unslash( $_GET['ftc_cart_tool'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+                $tool_message         = isset( $_GET['ftc_cart_tool_message'] ) ? sanitize_text_field( wp_unslash( $_GET['ftc_cart_tool_message'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+                $tool_cart_id         = isset( $_GET['ftc_cart_tool_id'] ) ? absint( wp_unslash( $_GET['ftc_cart_tool_id'] ) ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+                $payment_tool_status  = isset( $_GET['ftc_payment_tool'] ) ? sanitize_key( wp_unslash( $_GET['ftc_payment_tool'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+                $payment_tool_message = isset( $_GET['ftc_payment_tool_message'] ) ? sanitize_text_field( wp_unslash( $_GET['ftc_payment_tool_message'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+                $payment_tool_token   = isset( $_GET['ftc_payment_tool_token'] ) ? sanitize_text_field( wp_unslash( $_GET['ftc_payment_tool_token'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+                $payment_tool_url     = isset( $_GET['ftc_payment_tool_url'] ) ? esc_url_raw( wp_unslash( $_GET['ftc_payment_tool_url'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 
                 if ( 'success' === $tool_status && $tool_cart_id ) {
                     printf( '<div class="notice notice-success"><p>%s</p></div>', esc_html( sprintf( __( 'Carrito de prueba creado correctamente. ID: %d', 'ferk-topten-connector' ), $tool_cart_id ) ) );
                 } elseif ( 'error' === $tool_status && $tool_message ) {
                     printf( '<div class="notice notice-error"><p>%s</p></div>', esc_html( $tool_message ) );
+                }
+                if ( 'success' === $payment_tool_status ) {
+                    echo '<div class="notice notice-success"><p>' . esc_html( $payment_tool_message ? $payment_tool_message : __( 'Sesión de pago creada correctamente.', 'ferk-topten-connector' ) ) . '</p>';
+                    if ( $payment_tool_token ) {
+                        echo '<p><strong>' . esc_html__( 'Token:', 'ferk-topten-connector' ) . '</strong> ' . esc_html( $payment_tool_token ) . '</p>';
+                    }
+                    if ( $payment_tool_url ) {
+                        echo '<p><a href="' . esc_url( $payment_tool_url ) . '" target="_blank" rel="noopener noreferrer">' . esc_html__( 'Abrir URL de pago', 'ferk-topten-connector' ) . '</a></p>';
+                    }
+                    echo '</div>';
+                } elseif ( 'error' === $payment_tool_status && $payment_tool_message ) {
+                    printf( '<div class="notice notice-error"><p>%s</p></div>', esc_html( $payment_tool_message ) );
                 }
                 ?>
                 <h3><?php esc_html_e( 'Probar creación de carrito (sandbox)', 'ferk-topten-connector' ); ?></h3>
@@ -155,6 +171,49 @@ if ( ! isset( $tabs[ $current_tab ] ) ) {
                     </table>
                     <p>
                         <button type="submit" class="button button-primary"><?php esc_html_e( 'Crear carrito de prueba', 'ferk-topten-connector' ); ?></button>
+                    </p>
+                </form>
+                <h3><?php esc_html_e( 'Probar creación de pago (sandbox)', 'ferk-topten-connector' ); ?></h3>
+                <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                    <?php wp_nonce_field( 'ftc_tools_create_payment', 'ftc_tools_create_payment_nonce' ); ?>
+                    <input type="hidden" name="action" value="ftc_test_create_payment" />
+                    <table class="form-table" role="presentation">
+                        <tbody>
+                            <tr>
+                                <th scope="row"><label for="ftc_tool_carr_id"><?php esc_html_e( 'Carr_Id', 'ferk-topten-connector' ); ?></label></th>
+                                <td><input type="number" min="1" name="ftc_tool_carr_id" id="ftc_tool_carr_id" value="" class="regular-text" required /></td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="ftc_tool_coge_id"><?php esc_html_e( 'Coge_Id_Pago', 'ferk-topten-connector' ); ?></label></th>
+                                <td>
+                                    <select name="ftc_tool_coge_id" id="ftc_tool_coge_id">
+                                        <option value="27">27 - PlaceToPay</option>
+                                        <option value="28">28 - PlaceToPay Santander</option>
+                                    </select>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="ftc_tool_mepa_id"><?php esc_html_e( 'Mepa_Id', 'ferk-topten-connector' ); ?></label></th>
+                                <td>
+                                    <select name="ftc_tool_mepa_id" id="ftc_tool_mepa_id">
+                                        <option value="1">1 - Visa</option>
+                                        <option value="2">2 - MasterCard</option>
+                                        <option value="23">23 - Santander</option>
+                                    </select>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="ftc_tool_usua_cod"><?php esc_html_e( 'Usuario TopTen (Usua_Cod)', 'ferk-topten-connector' ); ?></label></th>
+                                <td><input type="number" min="1" name="ftc_tool_usua_cod" id="ftc_tool_usua_cod" value="" class="regular-text" required /></td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label for="ftc_tool_sucursal"><?php esc_html_e( 'Sucursal (opcional)', 'ferk-topten-connector' ); ?></label></th>
+                                <td><input type="number" min="1" name="ftc_tool_sucursal" id="ftc_tool_sucursal" value="" class="regular-text" /></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p>
+                        <button type="submit" class="button button-primary"><?php esc_html_e( 'Crear sesión de pago de prueba', 'ferk-topten-connector' ); ?></button>
                     </p>
                 </form>
             <?php elseif ( 'logs' === $current_tab ) : ?>

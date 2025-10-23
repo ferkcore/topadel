@@ -35,6 +35,7 @@ class FTC_Settings {
         add_action( 'wp_ajax_ftc_test_connection', array( $this, 'ajax_test_connection' ) );
         add_action( 'wp_ajax_ftc_export_logs', array( $this, 'ajax_export_logs' ) );
         add_action( 'admin_post_ftc_test_create_cart', array( $this, 'handle_test_create_cart' ) );
+        add_action( 'admin_post_ftc_test_create_payment', array( $this, 'handle_test_create_payment' ) );
     }
 
     /**
@@ -280,6 +281,146 @@ class FTC_Settings {
                 array(
                     'ftc_cart_tool'         => 'error',
                     'ftc_cart_tool_message' => rawurlencode( $e->getMessage() ),
+                ),
+                $redirect
+            );
+        }
+
+        wp_safe_redirect( $redirect );
+        exit;
+    }
+
+    /**
+     * Handle sandbox payment creation test.
+     */
+    public function handle_test_create_payment() {
+        if ( ! current_user_can( self::CAPABILITY ) ) {
+            wp_die( esc_html__( 'No tienes permisos.', 'ferk-topten-connector' ) );
+        }
+
+        $nonce = isset( $_POST['ftc_tools_create_payment_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['ftc_tools_create_payment_nonce'] ) ) : '';
+        if ( ! wp_verify_nonce( $nonce, 'ftc_tools_create_payment' ) ) {
+            wp_die( esc_html__( 'Nonce inválido.', 'ferk-topten-connector' ) );
+        }
+
+        $redirect = add_query_arg(
+            array(
+                'page' => 'ftc-settings',
+                'tab'  => 'tools',
+            ),
+            admin_url( 'admin.php' )
+        );
+
+        $carr_id  = isset( $_POST['ftc_tool_carr_id'] ) ? absint( wp_unslash( $_POST['ftc_tool_carr_id'] ) ) : 0;
+        $coge_id  = isset( $_POST['ftc_tool_coge_id'] ) ? absint( wp_unslash( $_POST['ftc_tool_coge_id'] ) ) : 0;
+        $mepa_id  = isset( $_POST['ftc_tool_mepa_id'] ) ? absint( wp_unslash( $_POST['ftc_tool_mepa_id'] ) ) : 0;
+        $usua_cod = isset( $_POST['ftc_tool_usua_cod'] ) ? absint( wp_unslash( $_POST['ftc_tool_usua_cod'] ) ) : 0;
+        $sucursal = isset( $_POST['ftc_tool_sucursal'] ) ? absint( wp_unslash( $_POST['ftc_tool_sucursal'] ) ) : 0;
+
+        if ( $carr_id <= 0 || $coge_id <= 0 || $mepa_id <= 0 || $usua_cod <= 0 ) {
+            $redirect = add_query_arg(
+                array(
+                    'ftc_payment_tool'         => 'error',
+                    'ftc_payment_tool_message' => rawurlencode( __( 'Completa todos los campos obligatorios.', 'ferk-topten-connector' ) ),
+                ),
+                $redirect
+            );
+            wp_safe_redirect( $redirect );
+            exit;
+        }
+
+        $settings    = get_option( self::OPTION_NAME, self::get_defaults() );
+        $credentials = isset( $settings['credentials'] ) ? $settings['credentials'] : self::get_defaults()['credentials'];
+        $client      = FTC_Plugin::instance()->client( $credentials );
+
+        $sucursal_id  = $sucursal > 0 ? $sucursal : 78;
+        $origen_label = get_bloginfo( 'name' );
+
+        $json_pedido = array(
+            'request'   => array(
+                'infoPago'          => array(
+                    'mone_Id'            => 2,
+                    'installments'       => 0,
+                    'captureDataIframe'  => false,
+                    'paymentMethodId'    => '',
+                    'tokenPayment'       => '',
+                    'nombreCompletoPago' => 'Sandbox Tester',
+                    'documento'          => '99999999',
+                    'tipoDocumento'      => 'Cédula de identidad',
+                    'email'              => 'sandbox@example.com',
+                    'coge_Id_Pago'       => $coge_id,
+                    'mepa_Id'            => $mepa_id,
+                    'valid'              => true,
+                ),
+                'facturacionPedido' => array(
+                    'nombres'         => 'Sandbox',
+                    'apellidos'       => 'Tester',
+                    'tipoDocumento'   => 'Cédula de identidad',
+                    'numeroDocumento' => '99999999',
+                    'telefono'        => '29000000',
+                    'indicativo'      => '+598',
+                    'rut'             => false,
+                    'idPais'          => 186,
+                    'razonSocial'     => '',
+                    'numRut'          => '',
+                ),
+                'entregaUsuario'    => array(
+                    'sucu_Id'           => $sucursal_id,
+                    'personaRetiro'     => 'SANDBOX TESTER',
+                    'direccionId'       => null,
+                    'coes_Id_Logistica' => null,
+                    'ventanaHoraria'    => '',
+                    'coma_Id'           => null,
+                    'DiasEnvio'         => array(),
+                ),
+                'ipUsuario'         => '127.0.0.1',
+                'infoExtra'         => 'Prueba sandbox desde herramientas',
+                'mone_Id'           => 2,
+                'codigoCupon'       => '',
+                'usua_Cod'          => $usua_cod,
+                'origen'            => $origen_label,
+                'productosPedido'   => array(),
+            ),
+            'cartItems' => new stdClass(),
+        );
+
+        $payload = array(
+            'Carr_Id'      => $carr_id,
+            'Coge_Id_Pago' => $coge_id,
+            'Mepa_Id'      => $mepa_id,
+            'JsonPedido'   => wp_json_encode( $json_pedido, JSON_UNESCAPED_UNICODE ),
+        );
+
+        try {
+            $response = $client->create_payment_placetopay( $payload );
+
+            $redirect = add_query_arg(
+                array(
+                    'ftc_payment_tool'         => 'success',
+                    'ftc_payment_tool_message' => rawurlencode( __( 'Sesión de pago creada correctamente.', 'ferk-topten-connector' ) ),
+                    'ftc_payment_tool_token'   => rawurlencode( $response['token'] ),
+                    'ftc_payment_tool_url'     => rawurlencode( $response['url_external'] ),
+                ),
+                $redirect
+            );
+        } catch ( Exception $e ) {
+            FTC_Logger::instance()->error(
+                'tools',
+                'create_payment_failed',
+                array(
+                    'error'   => $e->getMessage(),
+                    'payload' => array(
+                        'Carr_Id'      => $carr_id,
+                        'Coge_Id_Pago' => $coge_id,
+                        'Mepa_Id'      => $mepa_id,
+                    ),
+                )
+            );
+
+            $redirect = add_query_arg(
+                array(
+                    'ftc_payment_tool'         => 'error',
+                    'ftc_payment_tool_message' => rawurlencode( $e->getMessage() ),
                 ),
                 $redirect
             );

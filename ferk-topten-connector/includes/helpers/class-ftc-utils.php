@@ -175,4 +175,22 @@ class FTC_Utils {
 
         return array( $chosen_ids_csv, $chosen_text );
     }
+
+    /**
+     * Map WooCommerce currency code to TopTen mone_Id.
+     *
+     * @param string $wc_currency WooCommerce currency code.
+     *
+     * @return int
+     */
+    public static function map_currency_to_mone_id( string $wc_currency ) : int {
+        $map        = array(
+            'USD' => 1,
+            'UYU' => 2,
+        );
+        $wc_currency = strtoupper( trim( $wc_currency ) );
+        $id          = isset( $map[ $wc_currency ] ) ? $map[ $wc_currency ] : 2;
+
+        return (int) apply_filters( 'ftc_topten_map_mone_id', $id, $wc_currency );
+    }
 }

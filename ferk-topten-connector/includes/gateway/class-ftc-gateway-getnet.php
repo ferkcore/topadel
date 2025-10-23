@@ -109,6 +109,51 @@ class FTC_Gateway_Getnet extends WC_Payment_Gateway {
                 'type'        => 'text',
                 'description' => __( 'Código de moneda permitido. Dejar vacío para todos.', 'ferk-topten-connector' ),
             ),
+            'coge_id_pago' => array(
+                'title'       => __( 'Coge_Id_Pago', 'ferk-topten-connector' ),
+                'type'        => 'select',
+                'description' => __( 'Identificador del cobrador en TopTen. Usa 27 para PlaceToPay o 28 para PlaceToPay Santander.', 'ferk-topten-connector' ),
+                'default'     => '27',
+                'options'     => array(
+                    '27' => __( '27 - PlaceToPay', 'ferk-topten-connector' ),
+                    '28' => __( '28 - PlaceToPay Santander', 'ferk-topten-connector' ),
+                ),
+            ),
+            'mepa_id' => array(
+                'title'       => __( 'Mepa_Id', 'ferk-topten-connector' ),
+                'type'        => 'select',
+                'description' => __( 'Identificador del medio de pago. Usa 1 (Visa), 2 (MasterCard) o 23 (Santander).', 'ferk-topten-connector' ),
+                'default'     => '1',
+                'options'     => array(
+                    '1'  => __( '1 - Visa', 'ferk-topten-connector' ),
+                    '2'  => __( '2 - MasterCard', 'ferk-topten-connector' ),
+                    '23' => __( '23 - Santander (recomendado si usas PlaceToPay Santander)', 'ferk-topten-connector' ),
+                ),
+            ),
+            'sucursal_id' => array(
+                'title'       => __( 'Sucursal TopTen', 'ferk-topten-connector' ),
+                'type'        => 'number',
+                'description' => __( 'Identificador de sucursal para entrega/retira. 78 (Pocitos) por defecto.', 'ferk-topten-connector' ),
+                'default'     => '78',
+            ),
+            'id_pais' => array(
+                'title'       => __( 'País (Id)', 'ferk-topten-connector' ),
+                'type'        => 'number',
+                'description' => __( 'Identificador de país en TopTen. 186 corresponde a Uruguay.', 'ferk-topten-connector' ),
+                'default'     => '186',
+            ),
+            'indicativo' => array(
+                'title'       => __( 'Indicativo telefónico', 'ferk-topten-connector' ),
+                'type'        => 'text',
+                'description' => __( 'Código de país telefónico utilizado al construir el JsonPedido.', 'ferk-topten-connector' ),
+                'default'     => '+598',
+            ),
+            'origen' => array(
+                'title'       => __( 'Origen del pedido', 'ferk-topten-connector' ),
+                'type'        => 'text',
+                'description' => __( 'Se enviará en el campo "origen" del JsonPedido. Por defecto el nombre del sitio.', 'ferk-topten-connector' ),
+                'default'     => get_bloginfo( 'name' ),
+            ),
         );
     }
 
@@ -129,6 +174,12 @@ class FTC_Gateway_Getnet extends WC_Payment_Gateway {
 
         $base_url = ( 'yes' === $config['sandbox'] ) ? $config['base_url_sandbox'] : $config['base_url_production'];
         if ( empty( $base_url ) ) {
+            return false;
+        }
+
+        $coge_id = (int) $this->get_option( 'coge_id_pago', 27 );
+        $mepa_id = (int) $this->get_option( 'mepa_id', 1 );
+        if ( $coge_id <= 0 || $mepa_id <= 0 ) {
             return false;
         }
 
@@ -169,27 +220,33 @@ class FTC_Gateway_Getnet extends WC_Payment_Gateway {
         $customer_sync = $plugin->customer_sync();
         $cart_sync     = $plugin->cart_sync();
 
-        $topten_user_id = '';
+        $topten_user_id = (int) $order->get_meta( '_ftc_topten_user_id' );
 
-        try {
-            $topten_user_id = $customer_sync->get_or_create_topten_user_from_order( $order );
-            $order->update_meta_data( '_ftc_topten_user_id', $topten_user_id );
-            $order->save();
-        } catch ( \Throwable $e ) {
-            FTC_Logger::instance()->error( 'gateway', 'create_user_failed: ' . $e->getMessage(), array( 'order_id' => $order_id ) );
-            wc_add_notice( __( 'No pudimos crear el usuario en TopTen. Intenta nuevamente o elige otro método de pago.', 'ferk-topten-connector' ), 'error' );
+        if ( $topten_user_id <= 0 ) {
+            try {
+                $topten_user_id = (int) $customer_sync->get_or_create_topten_user_from_order( $order );
+                $order->update_meta_data( '_ftc_topten_user_id', $topten_user_id );
+                $order->save();
+            } catch ( \Throwable $e ) {
+                FTC_Logger::instance()->error(
+                    'gateway',
+                    'create_user_failed',
+                    array(
+                        'order_id' => $order_id,
+                        'error'    => $e->getMessage(),
+                    )
+                );
+                wc_add_notice( __( 'No pudimos crear el usuario en TopTen. Intenta nuevamente o elige otro método de pago.', 'ferk-topten-connector' ), 'error' );
 
-            return array( 'result' => 'fail' );
+                return array( 'result' => 'fail' );
+            }
         }
 
-        try {
-            $customer_sync = new FTC_Customer_Sync();
-            $user_id       = $customer_sync->get_or_create_topten_user_from_order( $order );
+        $cart_id = (int) $order->get_meta( '_ftc_topten_cart_id' );
 
-            $cart_sync = FTC_Plugin::instance()->cart_sync();
-
+        if ( $cart_id <= 0 ) {
             try {
-                $cart_id = $cart_sync->create_topten_cart_from_order( $order, $user_id );
+                $cart_id = (int) $cart_sync->create_topten_cart_from_order( $order, $topten_user_id );
                 $order->update_meta_data( '_ftc_topten_cart_id', $cart_id );
                 $order->save();
             } catch ( \Throwable $e ) {
@@ -206,55 +263,96 @@ class FTC_Gateway_Getnet extends WC_Payment_Gateway {
 
                 return array( 'result' => 'fail' );
             }
+        }
 
-            $return_url  = add_query_arg(
+        $topten_user_id = (int) $order->get_meta( '_ftc_topten_user_id' );
+        $cart_id        = (int) $order->get_meta( '_ftc_topten_cart_id' );
+
+        if ( $topten_user_id <= 0 || $cart_id <= 0 ) {
+            FTC_Logger::instance()->error(
+                'gateway',
+                'missing_ids',
                 array(
-                    'order_id' => $order->get_id(),
-                    'key'      => $order->get_order_key(),
-                ),
-                rest_url( 'ftc/v1/getnet/return' )
+                    'order_id' => $order_id,
+                    'user_id'  => $topten_user_id,
+                    'cart_id'  => $cart_id,
+                )
             );
-            $callback_url = rest_url( 'ftc/v1/getnet/webhook' );
+            wc_add_notice( __( 'Error preparando el pago. Intenta de nuevo.', 'ferk-topten-connector' ), 'error' );
 
-            $payload = array(
-                'cart_id'     => $cart_id,
-                'return_url'  => $return_url,
-                'callback_url'=> $callback_url,
-                'metadata'    => array(
-                    'wc_order_id'  => $order->get_id(),
-                    'wc_order_key' => $order->get_order_key(),
-                ),
-            );
+            return array( 'result' => 'fail' );
+        }
 
-            $payload = apply_filters( 'ftc_create_payment_payload', $payload, $order );
+        $currency = $order->get_currency();
+        $mone_id  = FTC_Utils::map_currency_to_mone_id( $currency );
 
-            $client = FTC_Plugin::instance()->get_client_from_order( $order );
-            $response = $client->create_payment( $payload, array( 'idempotency_key' => FTC_Utils::uuid_v4() ) );
+        $coge_id  = (int) $this->get_option( 'coge_id_pago', 27 );
+        $mepa_id  = (int) $this->get_option( 'mepa_id', 1 );
+        $sucursal = (int) $this->get_option( 'sucursal_id', 78 );
+        $id_pais  = (int) $this->get_option( 'id_pais', 186 );
+        $indic    = (string) $this->get_option( 'indicativo', '+598' );
+        $origen   = (string) $this->get_option( 'origen', get_bloginfo( 'name' ) );
 
-            if ( empty( $response['payment_url'] ) && empty( $response['redirect_url'] ) ) {
-                throw new Exception( __( 'No se recibió URL de pago.', 'ferk-topten-connector' ) );
-            }
+        $json_obj = FTC_JsonPedido::build_from_order(
+            $order,
+            array(
+                'usua_cod'     => $topten_user_id,
+                'mone_id'      => $mone_id,
+                'coge_id_pago' => $coge_id,
+                'mepa_id'      => $mepa_id,
+                'sucursal_id'  => $sucursal,
+                'id_pais'      => $id_pais,
+                'indicativo'   => $indic,
+                'origen'       => $origen,
+            )
+        );
+        $json_pedido_str = wp_json_encode( $json_obj, JSON_UNESCAPED_UNICODE );
 
-            $payment_id  = isset( $response['payment_id'] ) ? $response['payment_id'] : ( isset( $response['id'] ) ? $response['id'] : '' );
-            $payment_url = ! empty( $response['payment_url'] ) ? $response['payment_url'] : $response['redirect_url'];
+        $return_url = add_query_arg(
+            array(
+                'order_id' => $order_id,
+                'key'      => $order->get_order_key(),
+            ),
+            rest_url( 'ftc/v1/getnet/return' )
+        );
 
-            if ( empty( $payment_id ) ) {
-                throw new Exception( __( 'No se recibió ID de pago.', 'ferk-topten-connector' ) );
-            }
+        $payload = array(
+            'Carr_Id'      => $cart_id,
+            'Coge_Id_Pago' => $coge_id,
+            'Mepa_Id'      => $mepa_id,
+            'JsonPedido'   => $json_pedido_str,
+            'UrlRedirect'  => $return_url,
+        );
 
-            $order->update_meta_data( '_ftc_topten_payment_id', $payment_id );
-            $order->update_meta_data( '_ftc_topten_payment_url', $payment_url );
+        try {
+            $client = $plugin->client( $this->get_gateway_config() );
+            $res    = $client->create_payment_placetopay( $payload );
+
+            $order->update_meta_data( '_ftc_topten_payment_token', $res['token'] );
+            $order->update_meta_data( '_ftc_topten_payment_url', $res['url_external'] );
+            $order->update_meta_data( '_ftc_topten_payment_expiration_utc', $res['expiration_utc'] );
+            $order->update_meta_data( '_ftc_topten_payment_idadquiria', $res['id_adquiria'] );
             $order->save();
-
-            FTC_Logger::instance()->info( 'payment', __( 'Pago TopTen creado.', 'ferk-topten-connector' ), array( 'order_id' => $order_id, 'payment_id' => $payment_id ) );
 
             return array(
                 'result'   => 'success',
-                'redirect' => $payment_url,
+                'redirect' => $res['url_external'],
             );
-        } catch ( Exception $e ) {
-            FTC_Logger::instance()->error( 'process_payment', $e->getMessage(), array( 'order_id' => $order_id ) );
-            wc_add_notice( $e->getMessage(), 'error' );
+        } catch ( \Throwable $e ) {
+            FTC_Logger::instance()->error(
+                'gateway',
+                'create_payment_failed',
+                array(
+                    'order_id' => $order_id,
+                    'error'    => $e->getMessage(),
+                    'payload'  => array(
+                        'Carr_Id'      => $cart_id,
+                        'Coge_Id_Pago' => $coge_id,
+                        'Mepa_Id'      => $mepa_id,
+                    ),
+                )
+            );
+            wc_add_notice( __( 'No pudimos iniciar el pago. Intenta nuevamente o elige otro método.', 'ferk-topten-connector' ), 'error' );
 
             return array( 'result' => 'fail' );
         }
