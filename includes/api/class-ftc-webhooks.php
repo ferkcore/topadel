@@ -366,7 +366,15 @@ class FTC_Webhooks {
         $timestamp = gmdate( 'YmdHis' );
         $random    = wp_rand( 1000, 9999 );
         $email     = sprintf( 'ftc-sandbox+%s%s@example.com', $timestamp, $random );
-        $password  = FTC_Utils::random_password( 24 );
+        $password  = FTC_Utils::random_password(
+            10,
+            array(
+                'require_uppercase' => true,
+                'require_lowercase' => true,
+                'require_number'    => true,
+                'require_special'   => true,
+            )
+        );
 
         $payload = array(
             'Nombre'     => 'Sandbox',
