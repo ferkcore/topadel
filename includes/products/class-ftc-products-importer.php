@@ -322,12 +322,7 @@ class FTC_Products_Importer {
             $payload['PalabraClave'] = $keyword;
         }
 
-        $response = $this->get_client()->get_products_detail(
-            $payload,
-            array(
-                'use_api_key' => false,
-            )
-        );
+        $response = $this->get_client()->get_products_detail( $payload );
 
         $products = isset( $response['Productos'] ) && is_array( $response['Productos'] ) ? $response['Productos'] : array();
 

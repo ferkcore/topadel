@@ -49,7 +49,6 @@ class FTC_Settings {
                 'sandbox'        => 'yes',
                 'base_url_sandbox' => '',
                 'base_url_production' => '',
-                'api_key'        => '',
                 'webhook_secret' => '',
                 'timeout'        => 30,
                 'retries'        => 3,
@@ -100,7 +99,6 @@ class FTC_Settings {
         $clean['credentials']['sandbox']            = FTC_Utils::sanitize_checkbox( FTC_Utils::array_get( $input, 'credentials.sandbox' ) );
         $clean['credentials']['base_url_sandbox']   = esc_url_raw( FTC_Utils::array_get( $input, 'credentials.base_url_sandbox', '' ) );
         $clean['credentials']['base_url_production'] = esc_url_raw( FTC_Utils::array_get( $input, 'credentials.base_url_production', '' ) );
-        $clean['credentials']['api_key']            = FTC_Utils::sanitize_text( FTC_Utils::array_get( $input, 'credentials.api_key', '' ) );
         $clean['credentials']['webhook_secret']     = FTC_Utils::sanitize_text( FTC_Utils::array_get( $input, 'credentials.webhook_secret', '' ) );
         $clean['credentials']['timeout']            = max( 5, FTC_Utils::sanitize_int( FTC_Utils::array_get( $input, 'credentials.timeout', 30 ) ) );
         $clean['credentials']['retries']            = min( 5, max( 0, FTC_Utils::sanitize_int( FTC_Utils::array_get( $input, 'credentials.retries', 3 ) ) ) );
