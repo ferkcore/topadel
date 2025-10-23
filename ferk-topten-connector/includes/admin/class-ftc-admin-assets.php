@@ -60,6 +60,8 @@ class FTC_Admin_Assets {
                     'userTesting' => __( 'Creando usuario de prueba...', 'ferk-topten-connector' ),
                     'userSuccess' => __( 'Usuario TopTen creado: %s', 'ferk-topten-connector' ),
                     'userError'   => __( 'No se pudo crear el usuario de prueba.', 'ferk-topten-connector' ),
+                    'copied'      => __( 'Copiado', 'ferk-topten-connector' ),
+                    'copyFallback'=> __( 'Copiar manualmente', 'ferk-topten-connector' ),
                 ),
             )
         );

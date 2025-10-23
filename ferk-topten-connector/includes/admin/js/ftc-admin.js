@@ -95,5 +95,71 @@
                     });
             });
         }
+
+        $('.ftc-copy-button').on('click', function (event) {
+            event.preventDefault();
+
+            var button = $(this);
+            var targetSelector = button.data('copy-target');
+            var target = targetSelector ? document.querySelector(targetSelector) : null;
+            var value = '';
+
+            if (target && typeof target.value !== 'undefined') {
+                value = target.value;
+            }
+
+            if (!value && button.data('copy-value')) {
+                value = button.data('copy-value');
+            }
+
+            if (!button.data('copy-original')) {
+                button.data('copy-original', button.text());
+            }
+
+            var showCopied = function () {
+                button.text(ftcAdmin.messages.copied);
+                setTimeout(function () {
+                    button.text(button.data('copy-original'));
+                }, 2000);
+            };
+
+            var showError = function () {
+                button.text(ftcAdmin.messages.copyFallback);
+                setTimeout(function () {
+                    button.text(button.data('copy-original'));
+                }, 2000);
+            };
+
+            if (!value) {
+                showError();
+                return;
+            }
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(value)
+                    .then(showCopied)
+                    .catch(showError);
+                return;
+            }
+
+            if (target && target.select) {
+                target.select();
+                try {
+                    var successful = document.execCommand('copy');
+                    window.getSelection().removeAllRanges();
+                    if (successful) {
+                        showCopied();
+                    } else {
+                        showError();
+                    }
+                } catch (err) {
+                    showError();
+                }
+
+                return;
+            }
+
+            showError();
+        });
     });
 })(jQuery);
