@@ -139,8 +139,10 @@ class FTC_Client {
     public function get_products_detail( array $payload, array $args = array() ) : array {
         $headers = $this->build_headers( array( 'Content-Type' => 'application/json' ), $args );
 
+        $endpoint = $this->base_url( $args ) . self::PATH_GETPRODUCTS_DETAIL;
+
         $response = wp_remote_post(
-            $this->base_url( $args ) . self::PATH_GETPRODUCTS_DETAIL,
+            $endpoint,
             array(
                 'headers' => $headers,
                 'timeout' => $this->timeout( $args ),
@@ -153,13 +155,57 @@ class FTC_Client {
         }
 
         $raw  = wp_remote_retrieve_body( $response );
+        $code = (int) wp_remote_retrieve_response_code( $response );
         $json = json_decode( $raw, true );
+
+        if ( $code < 200 || $code >= 300 ) {
+            $message = $this->extract_products_detail_error_message( $json, $raw, $code );
+
+            throw new Exception( $message );
+        }
 
         if ( ! is_array( $json ) ) {
             throw new Exception( 'GetProductosDetail unexpected response: ' . $raw );
         }
 
         return $json;
+    }
+
+    /**
+     * Extract human readable error from GetProductosDetail response.
+     *
+     * @param array|null $decoded Decoded body.
+     * @param string     $raw     Raw body.
+     * @param int        $code    HTTP status code.
+     *
+     * @return string
+     */
+    protected function extract_products_detail_error_message( $decoded, string $raw, int $code ) : string {
+        if ( is_array( $decoded ) ) {
+            foreach ( array( 'Mensaje', 'mensaje', 'Message', 'message', 'error' ) as $key ) {
+                if ( isset( $decoded[ $key ] ) && is_scalar( $decoded[ $key ] ) ) {
+                    $message = trim( (string) $decoded[ $key ] );
+                    if ( '' !== $message ) {
+                        return $message;
+                    }
+                }
+            }
+
+            foreach ( array( 'Codigo', 'codigo', 'StatusCode', 'status_code' ) as $key ) {
+                if ( isset( $decoded[ $key ] ) && is_scalar( $decoded[ $key ] ) ) {
+                    $code_label = trim( (string) $decoded[ $key ] );
+                    if ( '' !== $code_label ) {
+                        return sprintf( '%s (%d)', $code_label, $code );
+                    }
+                }
+            }
+        }
+
+        if ( '' !== trim( $raw ) ) {
+            return sprintf( 'HTTP %1$d: %2$s', $code, trim( $raw ) );
+        }
+
+        return sprintf( 'HTTP %d', $code );
     }
 
     /**
