@@ -50,10 +50,10 @@ class FTC_Customer_Sync {
      * @throws Exception When creation fails.
      */
     public function get_or_create_topten_user_from_order( $order ) {
-        $user_id      = $order->get_user_id();
-        $email        = $order->get_billing_email();
-        $hash         = $email ? md5( strtolower( $email ) ) : '';
-        $wc_identifier = $user_id ? (int) $user_id : $this->get_guest_identifier( $email );
+        $wc_user_id    = (int) $order->get_user_id();
+        $email         = sanitize_email( (string) $order->get_billing_email() );
+        $identity_hash = FTC_Utils::hash_identity( $email );
+        $wc_identifier = $wc_user_id > 0 ? $wc_user_id : $this->get_guest_identifier( $email );
 
         $db  = FTC_Plugin::instance()->db();
         $map = $db ? $db->find_map( 'customer', $wc_identifier, $email ) : null;
@@ -65,11 +65,20 @@ class FTC_Customer_Sync {
             return $map['external_id'];
         }
 
+        $first    = (string) $order->get_billing_first_name();
+        $last     = (string) $order->get_billing_last_name();
+        $phone    = (string) $order->get_billing_phone();
         $doc_type = apply_filters( 'ftc_topten_document_type', (string) $order->get_meta( '_billing_document_type' ) );
         $doc_num  = apply_filters( 'ftc_topten_document_number', (string) $order->get_meta( '_billing_document' ) );
 
         $birth     = (string) $order->get_meta( '_billing_birthdate' );
         $birth_iso = FTC_Utils::normalize_datetime_nullable( $birth );
+
+        $ddi_meta = (string) $order->get_meta( '_billing_phone_ddi' );
+        $ddi      = apply_filters( 'ftc_topten_phone_ddi', $ddi_meta, $order );
+        $ddi      = is_scalar( $ddi ) ? preg_replace( '/\D+/', '', (string) $ddi ) : '';
+
+        $clean_phone = preg_replace( '/\D+/', '', $phone );
 
         $external_id = $wc_user_id > 0 ? (string) $wc_user_id : (string) $email;
         $password    = FTC_Utils::random_password( 24 );
@@ -78,17 +87,51 @@ class FTC_Customer_Sync {
             throw new Exception( 'Correo inválido para NewRegister' );
         }
 
+        $customer_data = array(
+            'email'      => $email,
+            'first'      => $first,
+            'last'       => $last,
+            'phone'      => $clean_phone,
+            'ddi'        => $ddi,
+            'doc'        => $doc_num,
+            'doc_type'   => $doc_type,
+            'birth'      => $birth_iso,
+            'externalId' => $external_id,
+        );
+
         if ( $db ) {
             $db->upsert_map(
                 'customer',
                 $wc_identifier ? $wc_identifier : 0,
                 $external_id,
                 array(
-                    'hash'      => $hash,
-                    'data_json' => $data_json,
+                    'hash' => $identity_hash,
+                    'data' => $customer_data,
                 )
             );
         }
+
+        $payload = array(
+            'Nombre'         => $first,
+            'Apellido'       => $last,
+            'Correo'         => $email,
+            'Clave'          => $password,
+            'Enti_Id'        => (int) apply_filters( 'ftc_topten_entity_id', FTC_Utils::FTCTOPTEN_ENTITY_ID ),
+            'ExternalId'     => $external_id,
+            'Documento'      => $doc_num ? $doc_num : null,
+            'DocumentoTipo'  => $doc_type ? $doc_type : null,
+            'Telefono'       => $clean_phone ? $clean_phone : null,
+            'TelefonoDDI'    => $ddi ? $ddi : null,
+            'FechaNacimiento'=> $birth_iso ? $birth_iso : null,
+        );
+
+        $payload = apply_filters( 'ftc_topten_newregister_payload', $payload, $order, $customer_data );
+        $payload = array_filter(
+            $payload,
+            static function ( $value ) {
+                return null !== $value && '' !== $value;
+            }
+        );
 
         $client = FTC_Plugin::instance()->client();
         $id     = (int) $client->create_user_newregister( $payload );
@@ -97,26 +140,50 @@ class FTC_Customer_Sync {
             throw new Exception( 'TopTen NewRegister retornó 0 (error creando usuario)' );
         }
 
-        $hash = FTC_Utils::hash_identity( $email );
-        $this->db->upsert_map(
-            'customer',
-            $wc_user_id > 0 ? $wc_user_id : 0,
-            (string) $id,
-            $hash,
-            array(
-                'email'       => $email,
-                'first'       => $first,
-                'last'        => $last,
-                'phone'       => $phone,
-                'ddi'         => $ddi,
-                'doc'         => $doc_num,
-                'doc_type'    => $doc_type,
-                'birth'       => $birth_iso,
-                'externalId'  => $external_id,
-                'created_from'=> 'NewRegister',
-            )
-        );
+        if ( $this->db ) {
+            $data = array_merge(
+                $customer_data,
+                array(
+                    'topten_id'   => (string) $id,
+                    'created_from'=> 'NewRegister',
+                )
+            );
+
+            if ( ! empty( $password ) ) {
+                $data['password_hint'] = substr( $password, 0, 3 ) . '***';
+            }
+
+            $this->db->upsert_map(
+                'customer',
+                $wc_user_id > 0 ? $wc_user_id : 0,
+                (string) $id,
+                array(
+                    'hash' => $identity_hash,
+                    'data' => $data,
+                )
+            );
+        }
 
         return (string) $id;
+    }
+
+    /**
+     * Build a deterministic identifier for guest customers.
+     *
+     * @param string $email Customer email.
+     *
+     * @return int
+     */
+    protected function get_guest_identifier( $email ) {
+        if ( ! is_scalar( $email ) ) {
+            return 0;
+        }
+
+        $email = trim( strtolower( (string) $email ) );
+        if ( '' === $email ) {
+            return 0;
+        }
+
+        return abs( crc32( $email ) );
     }
 }
