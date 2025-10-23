@@ -23,6 +23,7 @@ class FTC_Client {
     const PATH_ADD_CART_EXTERNAL     = '/api/Cart/AddCartProductExternal';
     const PATH_PAYMENT_PLACETOPAY    = '/api/CommonWeb/PaymentPlacetopay';
     const PATH_GETPRODUCTS_DETAIL    = '/api/Pro_Productos/GetProductosDetail';
+    const PATH_NEWREGISTER           = '/api/Users/NewRegister';
 
     /**
      * Configuration array.
