@@ -138,7 +138,7 @@ class FTC_Client {
      * @throws Exception When the request fails or the response is invalid.
      */
     public function get_products_detail( array $payload, array $args = array() ) : array {
-        $query = array();
+        $body_payload = array();
 
         foreach ( $payload as $key => $value ) {
             if ( null === $value ) {
@@ -146,40 +146,42 @@ class FTC_Client {
             }
 
             if ( is_bool( $value ) ) {
-                $query[ $key ] = $value ? 'true' : 'false';
+                $body_payload[ $key ] = $value;
                 continue;
             }
 
             if ( is_scalar( $value ) ) {
-                if ( is_string( $value ) && '' === trim( $value ) ) {
+                if ( is_string( $value ) ) {
+                    $trimmed = trim( $value );
+                    if ( '' === $trimmed ) {
+                        continue;
+                    }
+                    $body_payload[ $key ] = $trimmed;
                     continue;
                 }
 
-                $query[ $key ] = $value;
+                $body_payload[ $key ] = $value;
                 continue;
             }
 
             if ( is_array( $value ) || is_object( $value ) ) {
-                $encoded = wp_json_encode( $value, JSON_UNESCAPED_UNICODE );
-                if ( false !== $encoded && '' !== $encoded ) {
-                    $query[ $key ] = $encoded;
-                }
+                $body_payload[ $key ] = $value;
             }
         }
 
-        $query = apply_filters( 'ftc_client_products_detail_query', $query, $payload, $args, $this );
+        $body_payload = apply_filters( 'ftc_client_products_detail_payload', $body_payload, $payload, $args, $this );
+
+        $body = wp_json_encode( $body_payload, JSON_UNESCAPED_UNICODE );
+        if ( false === $body ) {
+            throw new Exception( 'GetProductosDetail payload encoding failed.' );
+        }
 
         $endpoint = rtrim( $this->base_url( $args ), '/' ) . self::PATH_GETPRODUCTS_DETAIL;
 
-        if ( ! empty( $query ) ) {
-            $endpoint = add_query_arg( $query, $endpoint );
-        }
-
         $request_args = array(
-            'headers' => array(
-                'Accept' => 'application/json',
-            ),
+            'headers' => $this->build_headers( array(), $args ),
             'timeout' => $this->timeout( $args ),
+            'body'    => $body,
         );
 
         $request_args = apply_filters( 'ftc_client_products_detail_request_args', $request_args, $endpoint, $payload, $args, $this );
@@ -192,7 +194,7 @@ class FTC_Client {
             }
         }
 
-        $response = wp_remote_get( $endpoint, $request_args );
+        $response = wp_remote_post( $endpoint, $request_args );
 
         if ( is_wp_error( $response ) ) {
             throw new Exception( 'GetProductosDetail transport error: ' . $response->get_error_message() );
