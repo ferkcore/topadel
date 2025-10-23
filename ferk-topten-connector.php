@@ -36,9 +36,9 @@ if ( ! defined( 'FTC_PLUGIN_VERSION' ) ) {
  * Load plugin textdomain.
  */
 function ftc_load_textdomain() {
-load_plugin_textdomain( 'ferk-topten-connector', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
+    load_plugin_textdomain( 'ferk-topten-connector', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
 }
-add_action( 'plugins_loaded', 'ftc_load_textdomain' );
+add_action( 'init', 'ftc_load_textdomain' );
 
 require_once FTC_PLUGIN_DIR . 'includes/class-ftc-activator.php';
 require_once FTC_PLUGIN_DIR . 'includes/class-ftc-deactivator.php';

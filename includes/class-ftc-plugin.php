@@ -23,7 +23,6 @@ require_once FTC_PLUGIN_DIR . 'includes/sync/class-ftc-cart-sync.php';
 require_once FTC_PLUGIN_DIR . 'includes/order/class-ftc-jsonpedido.php';
 require_once FTC_PLUGIN_DIR . 'includes/order/class-ftc-order-meta.php';
 require_once FTC_PLUGIN_DIR . 'includes/order/class-ftc-order-status.php';
-require_once FTC_PLUGIN_DIR . 'includes/gateway/class-ftc-gateway-getnet.php';
 
 /**
  * Main plugin class.
@@ -146,6 +145,8 @@ class FTC_Plugin {
             return;
         }
 
+        require_once FTC_PLUGIN_DIR . 'includes/gateway/class-ftc-gateway-getnet.php';
+
         $this->settings_page = new FTC_Settings();
         $this->settings_page->hooks();
 
@@ -180,6 +181,8 @@ class FTC_Plugin {
             $this->missing_dependencies[] = __( 'WooCommerce 8.0+', 'ferk-topten-connector' );
         } elseif ( defined( 'WC_VERSION' ) && version_compare( WC_VERSION, '8.0', '<' ) ) {
             $this->missing_dependencies[] = __( 'WooCommerce 8.0+', 'ferk-topten-connector' );
+        } elseif ( ! class_exists( 'WC_Payment_Gateway' ) ) {
+            $this->missing_dependencies[] = __( 'WooCommerce payment gateway framework', 'ferk-topten-connector' );
         }
 
         return empty( $this->missing_dependencies );
