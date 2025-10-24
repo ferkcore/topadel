@@ -24,6 +24,7 @@ require_once FTC_PLUGIN_DIR . 'includes/order/class-ftc-jsonpedido.php';
 require_once FTC_PLUGIN_DIR . 'includes/order/class-ftc-order-meta.php';
 require_once FTC_PLUGIN_DIR . 'includes/order/class-ftc-order-status.php';
 require_once FTC_PLUGIN_DIR . 'includes/products/class-ftc-products-importer.php';
+require_once FTC_PLUGIN_DIR . 'includes/products/class-ftc-products-matcher.php';
 require_once FTC_PLUGIN_DIR . 'includes/products/class-ftc-product-meta.php';
 
 /**
@@ -99,6 +100,13 @@ class FTC_Plugin {
      * @var FTC_Products_Importer|null
      */
     protected $products_importer_instance = null;
+
+    /**
+     * Products matcher instance.
+     *
+     * @var FTC_Products_Matcher|null
+     */
+    protected $products_matcher_instance = null;
 
     /**
      * Missing dependencies.
@@ -380,6 +388,19 @@ class FTC_Plugin {
         }
 
         return $this->products_importer_instance;
+    }
+
+    /**
+     * Get products matcher instance.
+     *
+     * @return FTC_Products_Matcher
+     */
+    public function products_matcher() {
+        if ( null === $this->products_matcher_instance ) {
+            $this->products_matcher_instance = new FTC_Products_Matcher();
+        }
+
+        return $this->products_matcher_instance;
     }
 
     /**

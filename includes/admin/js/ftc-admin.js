@@ -100,6 +100,244 @@
             });
         }
 
+        var matcherButton = $('#ftc-matcher-run');
+        if (matcherButton.length) {
+            if (!window.fetch) {
+                matcherButton.on('click', function (event) {
+                    event.preventDefault();
+                });
+            } else {
+                var matcherConfig = (typeof ftcAdmin !== 'undefined' && ftcAdmin.matcher) ? ftcAdmin.matcher : {};
+                var matcherFileInput = $('#ftc-matcher-file');
+                var matcherSpinner = $('#ftc-matcher-spinner');
+                var matcherStatus = $('#ftc-matcher-status');
+                var matcherSummary = $('#ftc-matcher-summary');
+                var matcherTableBody = $('#ftc-matcher-results tbody');
+                var matcherError = $('#ftc-matcher-error');
+                var matcherErrorText = $('#ftc-matcher-error p');
+                var messages = matcherConfig.messages || {};
+                var summaryLabels = matcherConfig.summaryLabels || {};
+                var statusLabels = matcherConfig.statusLabels || {};
+                var tableMessages = matcherConfig.tableMessages || {};
+                var previousLabel = matcherConfig.previousLabel || '';
+                var variantLabel = messages.variantOf || (ftcAdmin.productsSourceLabels && ftcAdmin.productsSourceLabels.variantOf) || 'Var. de';
+                var initialTableMessage = (matcherTableBody.find('td').first().text() || '').trim();
+
+                var getNonce = function () {
+                    var field = $('input[name="ftc_products_matcher_nonce"]');
+                    return field.length ? field.val() : '';
+                };
+
+                var resetTable = function () {
+                    var emptyMessage = tableMessages.empty || initialTableMessage || '';
+                    matcherTableBody.empty().append('<tr><td colspan="5">' + escapeHtml(emptyMessage) + '</td></tr>');
+                };
+
+                var hideError = function () {
+                    matcherError.hide();
+                    matcherErrorText.text('');
+                };
+
+                var showError = function (message) {
+                    matcherErrorText.text(message || messages.error || '');
+                    matcherError.show();
+                };
+
+                var setStatus = function (message, type) {
+                    matcherStatus.text(message || '');
+                    matcherStatus.removeClass('ftc-error ftc-success');
+                    if (type) {
+                        matcherStatus.addClass(type);
+                    }
+                };
+
+                var setBusy = function (busy) {
+                    matcherButton.prop('disabled', busy);
+                    matcherFileInput.prop('disabled', busy);
+                    if (busy) {
+                        matcherSpinner.addClass('is-active');
+                    } else {
+                        matcherSpinner.removeClass('is-active');
+                    }
+                };
+
+                var renderSummary = function (summary) {
+                    if (!summary || typeof summary !== 'object') {
+                        matcherSummary.empty();
+                        matcherSummary.removeClass('ftc-error ftc-success');
+                        return;
+                    }
+
+                    var keys = ['totalRows', 'processed', 'updated', 'unchanged', 'skipped', 'notFound', 'errors'];
+                    var html = '<ul>';
+                    var hasValues = false;
+
+                    keys.forEach(function (key) {
+                        if (typeof summary[key] === 'undefined') {
+                            return;
+                        }
+
+                        hasValues = true;
+                        var label = summaryLabels[key] || key;
+                        html += '<li><strong>' + escapeHtml(label) + ':</strong> ' + escapeHtml(String(summary[key])) + '</li>';
+                    });
+
+                    html += '</ul>';
+
+                    if (!hasValues) {
+                        matcherSummary.empty();
+                        matcherSummary.removeClass('ftc-error ftc-success');
+                        return;
+                    }
+
+                    matcherSummary.html(html);
+                    matcherSummary.removeClass('ftc-error').addClass('ftc-success');
+                };
+
+                var renderResults = function (items) {
+                    matcherTableBody.empty();
+
+                    if (!Array.isArray(items) || !items.length) {
+                        resetTable();
+                        return;
+                    }
+
+                    items.forEach(function (item) {
+                        var rowNumber = item && typeof item.row !== 'undefined' ? String(item.row) : '';
+                        var sku = item && typeof item.sku !== 'undefined' ? String(item.sku) : '';
+                        var toptenId = item && typeof item.topten_id !== 'undefined' && item.topten_id !== null ? String(item.topten_id) : '';
+                        var productId = item && item.product_id ? parseInt(item.product_id, 10) : 0;
+                        var productName = item && item.product_name ? String(item.product_name) : '';
+                        var parentId = item && item.product_parent_id ? parseInt(item.product_parent_id, 10) : 0;
+                        var previousId = item && typeof item.previous_id !== 'undefined' && item.previous_id ? String(item.previous_id) : '';
+                        var statusKey = item && item.status ? String(item.status) : '';
+                        var message = item && item.message ? String(item.message) : '';
+
+                        var rowCell = rowNumber ? escapeHtml(rowNumber) : '&mdash;';
+                        var skuCell = sku ? escapeHtml(sku) : '&mdash;';
+                        var toptenCell = toptenId ? escapeHtml(toptenId) : '&mdash;';
+
+                        var productCell = '&mdash;';
+                        if (productId > 0) {
+                            var editUrl = ftcAdmin.editPostUrl ? ftcAdmin.editPostUrl + '?post=' + productId + '&action=edit' : '';
+                            productCell = editUrl ? '<a href="' + escapeHtml(editUrl) + '">#' + escapeHtml(String(productId)) + '</a>' : '#' + escapeHtml(String(productId));
+                            if (productName) {
+                                productCell += '<br /><small>' + escapeHtml(productName) + '</small>';
+                            }
+                            if (parentId > 0) {
+                                productCell += '<br /><small>' + escapeHtml(variantLabel) + ' #' + escapeHtml(String(parentId)) + '</small>';
+                            }
+                        }
+
+                        var statusLabel = statusLabels[statusKey] || statusKey;
+                        var statusCell = statusLabel ? escapeHtml(statusLabel) : '&mdash;';
+                        if (message) {
+                            statusCell += '<br /><small>' + escapeHtml(message) + '</small>';
+                        }
+                        if (previousLabel && previousId && previousId !== toptenId) {
+                            statusCell += '<br /><small>' + escapeHtml(previousLabel) + ': ' + escapeHtml(previousId) + '</small>';
+                        }
+
+                        var rowHtml = '<tr>' +
+                            '<td>' + rowCell + '</td>' +
+                            '<td>' + skuCell + '</td>' +
+                            '<td>' + toptenCell + '</td>' +
+                            '<td>' + productCell + '</td>' +
+                            '<td>' + statusCell + '</td>' +
+                            '</tr>';
+
+                        matcherTableBody.append(rowHtml);
+                    });
+                };
+
+                var runMatcher = function () {
+                    hideError();
+                    setStatus('', '');
+                    matcherSummary.empty();
+                    matcherSummary.removeClass('ftc-error ftc-success');
+
+                    var nonce = getNonce();
+                    var files = matcherFileInput.length ? matcherFileInput[0].files : null;
+
+                    if (!files || !files.length) {
+                        setStatus(messages.selectFile || '', 'ftc-error');
+                        return;
+                    }
+
+                    if (!nonce) {
+                        showError(messages.error || '');
+                        return;
+                    }
+
+                    var formData = new FormData();
+                    formData.append('nonce', nonce);
+                    formData.append('file', files[0]);
+
+                    setBusy(true);
+                    setStatus(messages.uploading || '', '');
+
+                    fetch(matcherConfig.url, {
+                        method: 'POST',
+                        headers: {
+                            'X-WP-Nonce': ftcAdmin.restNonce
+                        },
+                        body: formData
+                    })
+                        .then(function (response) {
+                            return response.json()
+                                .catch(function () {
+                                    return {};
+                                })
+                                .then(function (data) {
+                                    if (!response.ok) {
+                                        throw data;
+                                    }
+
+                                    return data;
+                                });
+                        })
+                        .then(function (data) {
+                            setBusy(false);
+
+                            var items = data && Array.isArray(data.items) ? data.items : [];
+                            var summary = data && data.summary && typeof data.summary === 'object' ? data.summary : {};
+
+                            renderResults(items);
+                            renderSummary(summary);
+
+                            if (items.length) {
+                                setStatus(messages.success || '', 'ftc-success');
+                            } else {
+                                setStatus(messages.empty || '', 'ftc-error');
+                            }
+                        })
+                        .catch(function (error) {
+                            setBusy(false);
+                            renderResults([]);
+                            renderSummary({});
+
+                            var message = messages.error || '';
+                            if (error) {
+                                if (error.message) {
+                                    message = error.message;
+                                } else if (error.data && error.data.message) {
+                                    message = error.data.message;
+                                }
+                            }
+
+                            setStatus('', '');
+                            showError(message);
+                        });
+                };
+
+                resetTable();
+                matcherButton.on('click', function (event) {
+                    event.preventDefault();
+                    runMatcher();
+                });
+            }
+        }
+
         var productsRunButton = $('#ftc-products-map-run');
         if (productsRunButton.length) {
             var exportButton = $('#ftc-products-export');

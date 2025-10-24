@@ -35,7 +35,7 @@ if ( ! isset( $tabs[ $current_tab ] ) ) {
         <?php endforeach; ?>
     </h2>
 
-    <form method="post" action="options.php">
+    <form method="post" action="options.php" enctype="multipart/form-data">
         <?php settings_fields( 'ftc_settings_group' ); ?>
         <input type="hidden" name="ftc_settings[current_tab]" value="<?php echo esc_attr( $current_tab ); ?>" />
 
@@ -118,6 +118,44 @@ if ( ! isset( $tabs[ $current_tab ] ) ) {
                                     <th><?php esc_html_e( 'id_topten encontrado', 'ferk-topten-connector' ); ?></th>
                                     <th><?php esc_html_e( 'Fuente', 'ferk-topten-connector' ); ?></th>
                                     <th><?php esc_html_e( 'Acción', 'ferk-topten-connector' ); ?></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="5"><?php esc_html_e( 'Aún no hay resultados.', 'ferk-topten-connector' ); ?></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            <?php elseif ( 'matcher' === $current_tab ) : ?>
+                <?php wp_nonce_field( 'ftc_products_matcher', 'ftc_products_matcher_nonce' ); ?>
+                <div class="ftc-matcher-tab" id="ftc-matcher-tab">
+                    <p><?php esc_html_e( 'Sube un archivo con columnas SKU e ID TopTen para actualizar el id_topten de tus productos.', 'ferk-topten-connector' ); ?></p>
+                    <p class="description"><?php esc_html_e( 'Se aceptan archivos CSV o XLSX con encabezados reconocibles. El ID debe corresponder al producto en TopTen.', 'ferk-topten-connector' ); ?></p>
+                    <div class="ftc-matcher-upload">
+                        <label for="ftc-matcher-file" class="ftc-matcher-label"><?php esc_html_e( 'Archivo', 'ferk-topten-connector' ); ?></label>
+                        <input type="file" id="ftc-matcher-file" accept=".csv,.xlsx" />
+                        <p class="description"><?php esc_html_e( 'Incluye al menos las columnas SKU e ID TopTen. El límite de archivo es 5MB.', 'ferk-topten-connector' ); ?></p>
+                    </div>
+                    <div class="ftc-matcher-actions">
+                        <button type="button" class="button button-secondary" id="ftc-matcher-run"><?php esc_html_e( 'Subir y machear', 'ferk-topten-connector' ); ?></button>
+                        <span class="spinner" id="ftc-matcher-spinner"></span>
+                    </div>
+                    <div id="ftc-matcher-status" class="ftc-matcher-status"></div>
+                    <div id="ftc-matcher-error" class="notice notice-error" style="display:none;">
+                        <p></p>
+                    </div>
+                    <div id="ftc-matcher-summary" class="ftc-matcher-summary"></div>
+                    <div class="ftc-matcher-table-wrapper">
+                        <table class="widefat striped" id="ftc-matcher-results">
+                            <thead>
+                                <tr>
+                                    <th><?php esc_html_e( 'Fila', 'ferk-topten-connector' ); ?></th>
+                                    <th><?php esc_html_e( 'SKU', 'ferk-topten-connector' ); ?></th>
+                                    <th><?php esc_html_e( 'ID TopTen', 'ferk-topten-connector' ); ?></th>
+                                    <th><?php esc_html_e( 'Producto WooCommerce', 'ferk-topten-connector' ); ?></th>
+                                    <th><?php esc_html_e( 'Resultado', 'ferk-topten-connector' ); ?></th>
                                 </tr>
                             </thead>
                             <tbody>

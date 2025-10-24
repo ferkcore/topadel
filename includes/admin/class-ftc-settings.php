@@ -132,6 +132,7 @@ class FTC_Settings {
             'credentials' => __( 'Credenciales', 'ferk-topten-connector' ),
             'sync'        => __( 'Sincronización', 'ferk-topten-connector' ),
             'products'    => __( 'Productos', 'ferk-topten-connector' ),
+            'matcher'     => __( 'Machear', 'ferk-topten-connector' ),
             'search'      => __( 'Búsqueda', 'ferk-topten-connector' ),
             'tools'       => __( 'Herramientas', 'ferk-topten-connector' ),
             'logs'        => __( 'Logs', 'ferk-topten-connector' ),
