@@ -40,29 +40,18 @@ class FTC_Products_Importer {
     }
 
     /**
-     * Map TopTen products by SKU and optionally persist id_topten meta.
+     * Map TopTen products by SKU and persist id_topten meta.
      *
-     * @param array $args Arguments: apply_changes, overwrite, strategy, palabra_clave, max_pages.
+     * @param array $args Unused.
      *
      * @return array
      */
-    public function map_by_sku( array $args ) : array {
-        $defaults = array(
-            'apply_changes' => false,
-            'overwrite'     => false,
-            'strategy'      => 'case_insensitive_trim',
-            'palabra_clave' => null,
-            'max_pages'     => 10,
-        );
-
-        $args = wp_parse_args( $args, $defaults );
-
-        $apply_changes = ! empty( $args['apply_changes'] );
-        $overwrite     = ! empty( $args['overwrite'] );
-        $strategy      = in_array( $args['strategy'], array( 'case_insensitive_trim', 'exact' ), true ) ? $args['strategy'] : 'case_insensitive_trim';
-
-        $keyword = isset( $args['palabra_clave'] ) && '' !== trim( (string) $args['palabra_clave'] ) ? sanitize_text_field( $args['palabra_clave'] ) : null;
-        $max_pages = max( 0, (int) $args['max_pages'] );
+    public function map_by_sku( array $args ) : array { // phpcs:ignore VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable
+        $apply_changes = true;
+        $overwrite     = true;
+        $strategy      = 'case_insensitive_trim';
+        $keyword       = null;
+        $max_pages     = 0;
 
         $summary = array(
             'totalTopTen'      => 0,
@@ -77,10 +66,7 @@ class FTC_Products_Importer {
         $rows      = array();
         $truncated = false;
 
-        $entity_id = (int) apply_filters( 'ftc_topten_entity_id', FTC_Utils::FTCTOPTEN_ENTITY_ID );
-        if ( $entity_id <= 0 ) {
-            $entity_id = FTC_Utils::FTCTOPTEN_ENTITY_ID;
-        }
+        $entity_id = (int) FTC_Utils::FTCTOPTEN_ENTITY_ID;
 
         $logger     = FTC_Logger::instance();
         $page_limit = (int) apply_filters( 'ftc_products_map_max_pages', self::HARD_PAGE_LIMIT, $args );
@@ -96,7 +82,7 @@ class FTC_Products_Importer {
             }
 
             try {
-                $products_page = $this->fetch_page( $page, $keyword, $entity_id );
+                $products_page = $this->fetch_page( $page, $entity_id );
             } catch ( Exception $exception ) {
                 $logger->error(
                     'products-map',
@@ -306,13 +292,12 @@ class FTC_Products_Importer {
     /**
      * Fetch TopTen products page.
      *
-     * @param int         $page      Page number.
-     * @param string|null $keyword   Optional keyword used to filter TopTen results.
-     * @param int         $entity_id Entity identifier.
+     * @param int $page      Page number.
+     * @param int $entity_id Entity identifier.
      *
      * @return array
      */
-    public function fetch_page( int $page, ?string $keyword, int $entity_id ) : array {
+    public function fetch_page( int $page, int $entity_id ) : array {
         $payload = array(
             'Enti_Id'    => $entity_id,
             'Pagina'     => max( 1, $page ),
@@ -320,7 +305,6 @@ class FTC_Products_Importer {
             'Terminos'   => array(),
             'Categorias' => array(),
             'Marcas'     => array(),
-            'PalabraClave' => $keyword,
         );
 
         $response = $this->get_client()->get_products_detail( $payload );

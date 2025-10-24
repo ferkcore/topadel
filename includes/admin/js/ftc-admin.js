@@ -98,12 +98,6 @@
 
         var productsRunButton = $('#ftc-products-map-run');
         if (productsRunButton.length) {
-            var applyCheckbox = $('#ftc-products-apply');
-            var overwriteCheckbox = $('#ftc-products-overwrite');
-            var strategySelect = $('#ftc-products-strategy');
-            var keywordInput = $('#ftc-products-keyword');
-            var pagesInput = $('#ftc-products-pages');
-            var applyButton = $('#ftc-products-map-apply');
             var exportButton = $('#ftc-products-export');
             var spinner = $('#ftc-products-spinner');
             var summaryContainer = $('#ftc-products-summary');
@@ -112,7 +106,6 @@
             var state = {
                 rows: [],
                 summary: {},
-                lastApply: false,
                 truncated: false
             };
 
@@ -242,7 +235,6 @@
 
             var setBusy = function (busy) {
                 productsRunButton.prop('disabled', busy);
-                applyButton.prop('disabled', busy || !state.rows.length);
                 exportButton.prop('disabled', busy || !state.rows.length);
                 if (busy) {
                     spinner.addClass('is-active');
@@ -251,40 +243,25 @@
                 }
             };
 
-            var buildPayload = function (forcedApply) {
-                var apply = forcedApply ? true : applyCheckbox.prop('checked');
-                var overwrite = apply ? overwriteCheckbox.prop('checked') : false;
-                var strategy = strategySelect.val() || 'case_insensitive_trim';
-                var keyword = (keywordInput.val() || '').trim();
-                var pages = parseInt(pagesInput.val(), 10);
-
-                if (isNaN(pages) || pages < 0) {
-                    pages = 0;
-                }
-
+            var buildPayload = function () {
                 return {
-                    nonce: getNonce(),
-                    apply_changes: apply,
-                    overwrite: overwrite,
-                    strategy: strategy,
-                    palabra_clave: keyword ? keyword : null,
-                    max_pages: pages
+                    nonce: getNonce()
                 };
             };
 
-            var runMap = function (forcedApply) {
+            var runMap = function () {
                 if (!window.fetch) {
                     summaryContainer.text(ftcAdmin.productsMessages.error).removeClass('ftc-success').addClass('ftc-error');
                     return;
                 }
 
-                var payload = buildPayload(forcedApply);
+                var payload = buildPayload();
                 if (!payload.nonce) {
                     summaryContainer.text(ftcAdmin.productsMessages.error).removeClass('ftc-success').addClass('ftc-error');
                     return;
                 }
 
-                summaryContainer.text(payload.apply_changes ? ftcAdmin.productsMessages.applying : ftcAdmin.productsMessages.running).removeClass('ftc-error ftc-success');
+                summaryContainer.text(ftcAdmin.productsMessages.applying).removeClass('ftc-error ftc-success');
                 truncatedNotice.hide();
                 setBusy(true);
 
@@ -312,12 +289,11 @@
                     .then(function (data) {
                         state.rows = Array.isArray(data.rows) ? data.rows : [];
                         state.summary = data && data.summary && typeof data.summary === 'object' ? data.summary : {};
-                        state.lastApply = !!payload.apply_changes;
                         state.truncated = !!data.truncated;
 
                         renderTable(state.rows);
                         if (state.rows.length) {
-                            renderSummary(state.summary, state.lastApply);
+                            renderSummary(state.summary, true);
                         } else {
                             summaryContainer.text(ftcAdmin.productsMessages.empty).removeClass('ftc-success').addClass('ftc-error');
                         }
@@ -328,14 +304,12 @@
                             truncatedNotice.hide();
                         }
 
-                        applyButton.prop('disabled', !state.rows.length);
                         exportButton.prop('disabled', !state.rows.length);
                         setBusy(false);
                     })
                     .catch(function (error) {
                         state.rows = [];
                         state.summary = {};
-                        state.lastApply = false;
                         state.truncated = false;
 
                         var message = ftcAdmin.productsMessages.error;
@@ -350,7 +324,6 @@
                         summaryContainer.text(message).removeClass('ftc-success').addClass('ftc-error');
                         resetTable();
                         truncatedNotice.hide();
-                        applyButton.prop('disabled', true);
                         exportButton.prop('disabled', true);
                         setBusy(false);
                     });
@@ -391,10 +364,6 @@
                 URL.revokeObjectURL(url);
             };
 
-            applyCheckbox.on('change', function () {
-                overwriteCheckbox.prop('disabled', !applyCheckbox.prop('checked'));
-            }).trigger('change');
-
             if (!window.fetch) {
                 productsRunButton.on('click', function (event) {
                     event.preventDefault();
@@ -404,12 +373,7 @@
                 resetTable();
                 productsRunButton.on('click', function (event) {
                     event.preventDefault();
-                    runMap(false);
-                });
-
-                applyButton.on('click', function (event) {
-                    event.preventDefault();
-                    runMap(true);
+                    runMap();
                 });
 
                 exportButton.on('click', function (event) {
