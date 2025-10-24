@@ -307,7 +307,7 @@ class FTC_Products_Importer {
      * Fetch TopTen products page.
      *
      * @param int         $page      Page number.
-     * @param string|null $keyword   Optional keyword (currently unused to ensure full catalog fetch).
+     * @param string|null $keyword   Optional keyword used to filter TopTen results.
      * @param int         $entity_id Entity identifier.
      *
      * @return array
@@ -320,9 +320,8 @@ class FTC_Products_Importer {
             'Terminos'   => array(),
             'Categorias' => array(),
             'Marcas'     => array(),
+            'PalabraClave' => $keyword,
         );
-
-        // No PalabraClave filter to ensure all products are retrieved and matched locally by SKU.
 
         $response = $this->get_client()->get_products_detail( $payload );
 
