@@ -87,7 +87,11 @@ class FTC_Products_Matcher {
         $rows      = array();
         $row_count = 0;
 
-        while ( ( $data = fgetcsv( $handle ) ) !== false ) {
+        $delimiter = $this->detect_csv_delimiter( $handle );
+
+        rewind( $handle );
+
+        while ( ( $data = fgetcsv( $handle, 0, $delimiter ) ) !== false ) {
             $rows[] = array_map( array( $this, 'normalize_cell' ), $data );
             $row_count++;
 
@@ -99,6 +103,63 @@ class FTC_Products_Matcher {
         fclose( $handle );
 
         return $rows;
+    }
+
+    /**
+     * Detect CSV delimiter using the first few lines.
+     *
+     * @param resource $handle File handle.
+     *
+     * @return string
+     */
+    protected function detect_csv_delimiter( $handle ) : string {
+        if ( ! is_resource( $handle ) ) {
+            return ',';
+        }
+
+        $delimiters = array( ',', ';', "\t", '|' );
+        $counts     = array_fill_keys( $delimiters, 0 );
+        $lines_read = 0;
+
+        $position = ftell( $handle );
+        if ( false === $position ) {
+            $position = 0;
+        }
+
+        while ( ! feof( $handle ) && $lines_read < 5 ) {
+            $line = fgets( $handle );
+            if ( false === $line ) {
+                break;
+            }
+
+            $trimmed = trim( $line );
+            if ( '' === $trimmed ) {
+                continue;
+            }
+
+            foreach ( $delimiters as $delimiter ) {
+                $count = substr_count( $line, $delimiter );
+                if ( $count > 0 ) {
+                    $counts[ $delimiter ] += $count;
+                }
+            }
+
+            $lines_read++;
+        }
+
+        if ( -1 === fseek( $handle, $position, SEEK_SET ) ) {
+            rewind( $handle );
+        }
+
+        arsort( $counts );
+
+        foreach ( $counts as $delimiter => $count ) {
+            if ( $count > 0 ) {
+                return $delimiter;
+            }
+        }
+
+        return ',';
     }
 
     /**
