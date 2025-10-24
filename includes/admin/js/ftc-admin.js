@@ -2,6 +2,10 @@
     'use strict';
 
     $(function () {
+        var escapeHtml = function (text) {
+            return $('<div />').text(text || '').html();
+        };
+
         var button = $('#ftc-test-connection');
         var spinner = $('#ftc-test-spinner');
         var message = $('#ftc-test-result');
@@ -107,10 +111,6 @@
                 rows: [],
                 summary: {},
                 truncated: false
-            };
-
-            var escapeHtml = function (text) {
-                return $('<div />').text(text || '').html();
             };
 
             var getNonce = function () {
@@ -381,6 +381,333 @@
                     exportCsv();
                 });
             }
+        }
+
+        var searchButton = $('#ftc-search-run');
+        if (searchButton.length) {
+            var searchConfig = (typeof ftcAdmin !== 'undefined' && ftcAdmin.search) ? ftcAdmin.search : {};
+            var searchSpinner = $('#ftc-search-spinner');
+            var searchStatus = $('#ftc-search-status');
+            var searchError = $('#ftc-search-error');
+            var searchErrorText = $('#ftc-search-error p');
+            var searchTableBody = $('#ftc-search-results tbody');
+            var searchMeta = $('#ftc-search-meta');
+            var searchTermInput = $('#ftc-search-term');
+            var searchPageInput = $('#ftc-search-page');
+            var searchNonceField = $('input[name="ftc_products_search_nonce"]');
+            var initialSearchMessage = (searchTableBody.find('td').first().text() || '').trim();
+            var searchMessages = searchConfig.messages || {};
+            var searchEmptyMessage = searchMessages.empty || initialSearchMessage || (ftcAdmin.productsMessages ? ftcAdmin.productsMessages.empty : '');
+            var searchErrorMessage = searchMessages.error || (ftcAdmin.productsMessages ? ftcAdmin.productsMessages.error : '');
+            var searchRunningMessage = searchMessages.running || '';
+            var searchTermsPrefix = searchMessages.termsPrefix || 'Términos';
+
+            var searchFormatTemplate = function (template, replacements) {
+                if (!template) {
+                    return '';
+                }
+
+                return template.replace(/%(\d)\$d/g, function (match, index) {
+                    var key = parseInt(index, 10);
+                    if (!Object.prototype.hasOwnProperty.call(replacements, key)) {
+                        return match;
+                    }
+
+                    return String(replacements[key]);
+                });
+            };
+
+            var searchResetTable = function (message) {
+                var text = message || searchEmptyMessage || '';
+                if (text) {
+                    searchTableBody.empty().append('<tr><td colspan="5">' + escapeHtml(text) + '</td></tr>');
+                } else {
+                    searchTableBody.empty();
+                }
+            };
+
+            var searchHideError = function () {
+                searchError.hide();
+                searchErrorText.text('');
+            };
+
+            var searchShowError = function (message) {
+                var text = message || searchErrorMessage || '';
+                if (!text && searchMessages.error) {
+                    text = searchMessages.error;
+                }
+                searchErrorText.text(text);
+                searchError.show();
+            };
+
+            var searchSetStatus = function (text) {
+                searchStatus.text(text || '');
+            };
+
+            var searchRenderRows = function (products) {
+                searchTableBody.empty();
+
+                if (!Array.isArray(products) || !products.length) {
+                    searchResetTable(searchEmptyMessage);
+                    return;
+                }
+
+                products.forEach(function (product) {
+                    var info = product && product.InfoProducto ? product.InfoProducto : {};
+                    var productData = info && typeof info === 'object' ? (info.Producto || {}) : {};
+                    var prodId = productData.Prod_Id;
+                    if (typeof prodId === 'string') {
+                        var parsedId = parseInt(prodId, 10);
+                        prodId = isNaN(parsedId) ? prodId : parsedId;
+                    }
+                    if (typeof prodId !== 'number' && typeof prodId !== 'string') {
+                        prodId = '';
+                    }
+
+                    var sku = productData.Prod_Sku || productData.SKU || productData.Sku || '';
+                    var name = productData.Prod_Nombre || productData.Prod_Descripcion || productData.Nombre || productData.Descripcion || '';
+                    var brand = '';
+                    if (productData.Marca && typeof productData.Marca === 'object') {
+                        brand = productData.Marca.Marc_Descripcion || productData.Marca.Descripcion || productData.Marca.Nombre || '';
+                    }
+                    if (!brand && productData.Prod_Marca) {
+                        brand = productData.Prod_Marca;
+                    }
+                    if (!brand && info && typeof info === 'object') {
+                        brand = info.MarcaDescripcion || '';
+                        if (!brand && info.Marca && typeof info.Marca === 'object') {
+                            brand = info.Marca.Descripcion || info.Marca.Nombre || '';
+                        }
+                    }
+
+                    var price = '';
+                    var priceKeys = ['Prod_PrecioConIva', 'Prod_PrecioConIVA', 'Prod_Precio', 'PrecioConIva', 'PrecioConIVA', 'Precio'];
+                    priceKeys.some(function (key) {
+                        if (typeof productData[key] !== 'undefined' && productData[key] !== null && productData[key] !== '') {
+                            price = productData[key];
+                            return true;
+                        }
+                        return false;
+                    });
+                    if (!price && info && typeof info === 'object' && typeof info.Precio !== 'undefined') {
+                        price = info.Precio;
+                    }
+                    if (typeof price === 'number') {
+                        price = price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    } else if (typeof price !== 'string') {
+                        if (price !== null && typeof price !== 'undefined') {
+                            price = String(price);
+                        } else {
+                            price = '';
+                        }
+                    }
+
+                    var termsPreview = '';
+                    if (info && typeof info === 'object' && Array.isArray(info.TerminosList)) {
+                        var values = info.TerminosList.map(function (term) {
+                            if (!term) {
+                                return '';
+                            }
+                            if (typeof term === 'string') {
+                                return term;
+                            }
+                            if (typeof term === 'object') {
+                                if (term.SkuPropio) {
+                                    return term.SkuPropio;
+                                }
+                                if (term.Sku) {
+                                    return term.Sku;
+                                }
+                                if (term.CodigoInterno) {
+                                    return term.CodigoInterno;
+                                }
+                            }
+                            return '';
+                        }).filter(function (value) {
+                            return !!value;
+                        });
+
+                        if (values.length) {
+                            var previewValues = values.slice(0, 3);
+                            termsPreview = previewValues.join(', ');
+                            if (values.length > previewValues.length) {
+                                termsPreview += '…';
+                            }
+                        }
+                    }
+
+                    var idCell = prodId ? escapeHtml(String(prodId)) : '&mdash;';
+                    var skuCell = sku ? escapeHtml(String(sku)) : '&mdash;';
+                    var nameHtml = name ? escapeHtml(String(name)) : '&mdash;';
+                    if (termsPreview) {
+                        nameHtml += '<br><small>' + escapeHtml(searchTermsPrefix) + ': ' + escapeHtml(termsPreview) + '</small>';
+                    }
+                    var brandCell = brand ? escapeHtml(String(brand)) : '&mdash;';
+                    var priceCell = price ? escapeHtml(String(price)) : '&mdash;';
+
+                    var rowHtml = '<tr>' +
+                        '<td>' + idCell + '</td>' +
+                        '<td>' + skuCell + '</td>' +
+                        '<td>' + nameHtml + '</td>' +
+                        '<td>' + brandCell + '</td>' +
+                        '<td>' + priceCell + '</td>' +
+                        '</tr>';
+
+                    searchTableBody.append(rowHtml);
+                });
+            };
+
+            var searchFormatMeta = function (meta, count) {
+                if (!meta || typeof meta !== 'object') {
+                    return '';
+                }
+
+                var page = parseInt(meta.page, 10);
+                var pages = parseInt(meta.pages, 10);
+                var total = parseInt(meta.total, 10);
+
+                if (!page || isNaN(page) || page < 1) {
+                    page = 1;
+                }
+
+                if (!pages || isNaN(pages) || pages < 0) {
+                    pages = 0;
+                }
+
+                if (isNaN(total) || total < 0) {
+                    total = typeof count === 'number' ? count : 0;
+                }
+
+                if (pages > 0 && searchMessages.meta) {
+                    return searchFormatTemplate(searchMessages.meta, { 1: page, 2: pages, 3: total });
+                }
+
+                if (searchMessages.metaSingle) {
+                    return searchFormatTemplate(searchMessages.metaSingle, { 1: page, 2: total });
+                }
+
+                return '';
+            };
+
+            var searchPerform = function () {
+                if (!window.fetch) {
+                    searchSetStatus('');
+                    searchShowError(searchErrorMessage || searchMessages.error || '');
+                    return;
+                }
+
+                if (!searchConfig.url) {
+                    searchSetStatus('');
+                    searchShowError(searchErrorMessage || searchMessages.error || '');
+                    return;
+                }
+
+                var nonce = searchNonceField.length ? searchNonceField.val() : '';
+                if (!nonce) {
+                    searchSetStatus('');
+                    searchShowError(searchErrorMessage || searchMessages.error || '');
+                    return;
+                }
+
+                var pageValue = parseInt(searchPageInput.val(), 10);
+                if (!pageValue || pageValue < 1) {
+                    pageValue = 1;
+                    searchPageInput.val(pageValue);
+                }
+
+                var termsValue = searchTermInput.val() || '';
+                var terms = termsValue.split(/[,;]/).map(function (value) {
+                    return value.trim();
+                }).filter(function (value) {
+                    return value.length > 0;
+                });
+
+                searchHideError();
+                searchSetStatus(searchRunningMessage);
+                searchSpinner.addClass('is-active');
+                searchButton.prop('disabled', true);
+                searchMeta.text('');
+
+                window.fetch(searchConfig.url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-WP-Nonce': ftcAdmin.restNonce || ''
+                    },
+                    body: JSON.stringify({
+                        nonce: nonce,
+                        page: pageValue,
+                        terms: terms
+                    })
+                })
+                    .then(function (response) {
+                        return response.json()
+                            .catch(function () {
+                                return {};
+                            })
+                            .then(function (data) {
+                                if (!response.ok) {
+                                    var message = '';
+                                    if (data && data.message) {
+                                        message = data.message;
+                                    } else if (data && data.data && data.data.message) {
+                                        message = data.data.message;
+                                    }
+                                    if (!message) {
+                                        message = searchErrorMessage || searchMessages.error || '';
+                                    }
+                                    throw new Error(message);
+                                }
+
+                                return data;
+                            });
+                    })
+                    .then(function (data) {
+                        searchButton.prop('disabled', false);
+                        searchSpinner.removeClass('is-active');
+
+                        var products = Array.isArray(data.products) ? data.products : [];
+                        searchRenderRows(products);
+
+                        var metaText = searchFormatMeta(data.meta || {}, products.length);
+                        searchMeta.text(metaText);
+
+                        if (!products.length) {
+                            searchSetStatus(searchEmptyMessage);
+                        } else {
+                            searchSetStatus('');
+                        }
+                    })
+                    .catch(function (error) {
+                        searchButton.prop('disabled', false);
+                        searchSpinner.removeClass('is-active');
+
+                        var message = error && error.message ? error.message : (searchErrorMessage || searchMessages.error || '');
+                        searchResetTable(searchEmptyMessage);
+                        searchMeta.text('');
+                        searchSetStatus('');
+                        searchShowError(message);
+                    });
+            };
+
+            searchButton.on('click', function (event) {
+                event.preventDefault();
+                searchPerform();
+            });
+
+            searchTermInput.on('keypress', function (event) {
+                if (event.which === 13) {
+                    event.preventDefault();
+                    searchPerform();
+                }
+            });
+
+            searchPageInput.on('keypress', function (event) {
+                if (event.which === 13) {
+                    event.preventDefault();
+                    searchPerform();
+                }
+            });
         }
 
         $('.ftc-copy-button').on('click', function (event) {

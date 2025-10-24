@@ -77,6 +77,16 @@ class FTC_Webhooks {
                 'permission_callback' => array( $this, 'check_admin_permission' ),
             )
         );
+
+        register_rest_route(
+            'ftc/v1',
+            '/admin/products-search',
+            array(
+                'methods'             => 'POST',
+                'callback'            => array( $this, 'handle_admin_products_search' ),
+                'permission_callback' => array( $this, 'check_admin_permission' ),
+            )
+        );
     }
 
     /**
@@ -240,6 +250,153 @@ class FTC_Webhooks {
             array(
                 'received'     => true,
                 'order_found'  => true,
+            )
+        );
+    }
+
+    /**
+     * Handle admin products search action.
+     *
+     * @param WP_REST_Request $request Request.
+     *
+     * @return WP_REST_Response|WP_Error
+     */
+    public function handle_admin_products_search( WP_REST_Request $request ) {
+        $nonce = $request->get_param( 'nonce' );
+        if ( ! is_string( $nonce ) || ! wp_verify_nonce( $nonce, 'ftc_products_search' ) ) {
+            return new WP_Error( 'ftc_products_search_nonce', __( 'Nonce inválido.', 'ferk-topten-connector' ), array( 'status' => 403 ) );
+        }
+
+        $page = (int) $request->get_param( 'page' );
+        if ( $page <= 0 ) {
+            $page = 1;
+        }
+
+        $sanitize_list = static function ( $raw ) {
+            $items = array();
+
+            if ( is_array( $raw ) ) {
+                foreach ( $raw as $item ) {
+                    if ( ! is_scalar( $item ) ) {
+                        continue;
+                    }
+
+                    $value = sanitize_text_field( wp_unslash( (string) $item ) );
+                    if ( '' !== $value ) {
+                        $items[] = $value;
+                    }
+                }
+
+                return $items;
+            }
+
+            if ( is_scalar( $raw ) ) {
+                $parts = preg_split( '/[,;\n]+/', (string) $raw );
+                if ( is_array( $parts ) ) {
+                    foreach ( $parts as $part ) {
+                        $value = sanitize_text_field( wp_unslash( $part ) );
+                        if ( '' !== $value ) {
+                            $items[] = $value;
+                        }
+                    }
+                }
+            }
+
+            return $items;
+        };
+
+        $terms      = array_values( $sanitize_list( $request->get_param( 'terms' ) ) );
+        $categories = array_values( $sanitize_list( $request->get_param( 'categories' ) ) );
+        $brands     = array_values( $sanitize_list( $request->get_param( 'brands' ) ) );
+
+        $payload = array(
+            'Enti_Id'    => (int) apply_filters( 'ftc_topten_entity_id', FTC_Utils::FTCTOPTEN_ENTITY_ID ),
+            'Pagina'     => $page,
+            'Publicado'  => true,
+            'Terminos'   => $terms,
+            'Categorias' => $categories,
+            'Marcas'     => $brands,
+        );
+
+        try {
+            $client   = FTC_Plugin::instance()->client();
+            $response = $client->get_products_detail( $payload );
+        } catch ( Exception $exception ) {
+            FTC_Logger::instance()->error(
+                'products-search',
+                'Products search failed',
+                array(
+                    'page'       => $page,
+                    'terms'      => $terms,
+                    'categories' => $categories,
+                    'brands'     => $brands,
+                    'error'      => $exception->getMessage(),
+                )
+            );
+
+            return new WP_Error( 'ftc_products_search_failed', $exception->getMessage(), array( 'status' => 500 ) );
+        }
+
+        $products = array();
+        if ( isset( $response['Productos'] ) && is_array( $response['Productos'] ) ) {
+            $products = $response['Productos'];
+        }
+
+        $meta = array(
+            'page'  => $page,
+            'pages' => 0,
+            'total' => 0,
+        );
+
+        $page_candidates = array(
+            FTC_Utils::array_get( $response, 'PaginaActual', 0 ),
+            FTC_Utils::array_get( $response, 'Pagina', 0 ),
+        );
+
+        foreach ( $page_candidates as $candidate ) {
+            $candidate = (int) $candidate;
+            if ( $candidate > 0 ) {
+                $meta['page'] = $candidate;
+                break;
+            }
+        }
+
+        $pages_candidates = array(
+            FTC_Utils::array_get( $response, 'CantidadPaginas', 0 ),
+            FTC_Utils::array_get( $response, 'TotalPaginas', 0 ),
+            FTC_Utils::array_get( $response, 'Paginas', 0 ),
+        );
+
+        foreach ( $pages_candidates as $candidate ) {
+            $candidate = (int) $candidate;
+            if ( $candidate >= 0 ) {
+                $meta['pages'] = $candidate;
+                if ( $candidate > 0 ) {
+                    break;
+                }
+            }
+        }
+
+        $total_candidates = array(
+            FTC_Utils::array_get( $response, 'CantidadRegistros', 0 ),
+            FTC_Utils::array_get( $response, 'TotalRegistros', 0 ),
+            FTC_Utils::array_get( $response, 'Total', 0 ),
+        );
+
+        foreach ( $total_candidates as $candidate ) {
+            $candidate = (int) $candidate;
+            if ( $candidate >= 0 ) {
+                $meta['total'] = $candidate;
+                if ( $candidate > 0 ) {
+                    break;
+                }
+            }
+        }
+
+        return rest_ensure_response(
+            array(
+                'products' => $products,
+                'meta'     => $meta,
             )
         );
     }

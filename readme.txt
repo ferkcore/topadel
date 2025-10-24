@@ -33,6 +33,7 @@ Usa el botón "Testear conexión" en la pestaña de herramientas para verificar 
 == Changelog ==
 = 0.3.2 =
 * Ajusta la consulta de productos para usar el servicio público sin autenticación por token ni API Key.
+* Incorpora pestaña "Búsqueda" para consultar el catálogo público sin modificar productos locales.
 
 = 0.3.1 =
 * Añade pestaña "Productos" con herramienta para consultar `GetProductosDetail`, mapear por SKU y opcionalmente escribir el metadato `id_topten`.
