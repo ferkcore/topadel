@@ -434,6 +434,8 @@ class FTC_Settings {
                         'Carr_Id'      => $carr_id,
                         'Coge_Id_Pago' => $coge_id,
                         'Mepa_Id'      => $mepa_id,
+                        'JsonPedido'   => $payload['JsonPedido'],
+                        'UrlRedirect'  => $payload['UrlRedirect'] ?? '',
                     ),
                 )
             );

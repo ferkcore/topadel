@@ -347,6 +347,8 @@ class FTC_Gateway_Getnet extends WC_Payment_Gateway {
                         'Carr_Id'      => $cart_id,
                         'Coge_Id_Pago' => $coge_id,
                         'Mepa_Id'      => $mepa_id,
+                        'JsonPedido'   => $json_pedido_str,
+                        'UrlRedirect'  => $return_url,
                     ),
                 )
             );
