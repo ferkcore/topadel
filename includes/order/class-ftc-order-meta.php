@@ -303,9 +303,9 @@ class FTC_Order_Meta {
 
         printf(
             '<div class="notice notice-warning"><p>%1$s</p>%2$s<p>%3$s</p></div>',
-            esc_html__( 'Algunos productos no tienen asignado el Prod_Id de TopTen.', 'ferk-topten-connector' ),
+            esc_html__( 'Algunos productos no tienen asignado un identificador de TopTen (SKU).', 'ferk-topten-connector' ),
             wp_kses_post( $items_html ),
-            esc_html( sprintf( 'Agrega el meta "%1$s" en el producto o implementa los filtros "ftc_topten_resolve_prod_id_by_sku" / "ftc_topten_map_chosen_terms" para resolverlos dinámicamente.', $meta_key ) )
+            esc_html( sprintf( 'Asegúrate de definir un SKU en WooCommerce, agrega el meta "%1$s" en el producto o implementa los filtros "ftc_topten_resolve_prod_id_by_sku" / "ftc_topten_map_chosen_terms" para resolverlos dinámicamente.', $meta_key ) )
         );
     }
 }

@@ -220,7 +220,8 @@ class FTC_Settings {
         check_admin_referer( 'ftc_tools_create_cart', 'ftc_tools_create_cart_nonce' );
 
         $user_id = isset( $_POST['ftc_tool_user_id'] ) ? absint( wp_unslash( $_POST['ftc_tool_user_id'] ) ) : 0;
-        $prod_id = isset( $_POST['ftc_tool_prod_id'] ) ? absint( wp_unslash( $_POST['ftc_tool_prod_id'] ) ) : 0;
+        $prod_id = isset( $_POST['ftc_tool_prod_id'] ) ? sanitize_text_field( wp_unslash( $_POST['ftc_tool_prod_id'] ) ) : '';
+        $prod_id = trim( $prod_id );
         $qty     = isset( $_POST['ftc_tool_qty'] ) ? absint( wp_unslash( $_POST['ftc_tool_qty'] ) ) : 1;
 
         $redirect = add_query_arg(
@@ -231,11 +232,11 @@ class FTC_Settings {
             admin_url( 'admin.php' )
         );
 
-        if ( $user_id <= 0 || $prod_id <= 0 ) {
+        if ( $user_id <= 0 || '' === $prod_id ) {
             $redirect = add_query_arg(
                 array(
                     'ftc_cart_tool'         => 'error',
-                    'ftc_cart_tool_message' => rawurlencode( __( 'Debes ingresar un usuario y producto de prueba válidos.', 'ferk-topten-connector' ) ),
+                    'ftc_cart_tool_message' => rawurlencode( __( 'Debes ingresar un usuario y un SKU de prueba válidos.', 'ferk-topten-connector' ) ),
                 ),
                 $redirect
             );

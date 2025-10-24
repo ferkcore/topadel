@@ -301,8 +301,8 @@ if ( ! isset( $tabs[ $current_tab ] ) ) {
                                 <td><input type="number" min="1" name="ftc_tool_user_id" id="ftc_tool_user_id" value="" class="regular-text" /></td>
                             </tr>
                             <tr>
-                                <th scope="row"><label for="ftc_tool_prod_id"><?php esc_html_e( 'Prod_Id de prueba', 'ferk-topten-connector' ); ?></label></th>
-                                <td><input type="number" min="1" name="ftc_tool_prod_id" id="ftc_tool_prod_id" value="" class="regular-text" /></td>
+                                <th scope="row"><label for="ftc_tool_prod_id"><?php esc_html_e( 'SKU de prueba', 'ferk-topten-connector' ); ?></label></th>
+                                <td><input type="text" name="ftc_tool_prod_id" id="ftc_tool_prod_id" value="" class="regular-text" /></td>
                             </tr>
                             <tr>
                                 <th scope="row"><label for="ftc_tool_qty"><?php esc_html_e( 'Cantidad', 'ferk-topten-connector' ); ?></label></th>

@@ -157,11 +157,14 @@ class FTC_Utils {
     }
 
     /**
-     * Resolve TopTen product ID from WooCommerce product.
+     * Resolve TopTen product identifier from WooCommerce product.
+     *
+     * Returns the SKU when available; otherwise falls back to stored
+     * identifiers compatible with previous integrations.
      *
      * @param \WC_Product $product Product instance.
      *
-     * @return int|null
+     * @return string|int|null
      */
     public static function resolve_topten_product_id( \WC_Product $product ) {
         $targets = array();
@@ -179,6 +182,28 @@ class FTC_Utils {
                     'id'      => $parent_id,
                     'product' => $parent_product,
                 );
+            }
+        }
+
+        foreach ( $targets as $target ) {
+            $product_obj = isset( $target['product'] ) && $target['product'] instanceof \WC_Product ? $target['product'] : $product;
+
+            if ( ! $product_obj ) {
+                continue;
+            }
+
+            $sku = trim( (string) $product_obj->get_sku() );
+            if ( '' !== $sku ) {
+                $legacy_mapped = apply_filters( 'ftc_topten_resolve_prod_id_by_sku', null, $sku, $product_obj );
+
+                if ( is_string( $legacy_mapped ) || is_numeric( $legacy_mapped ) ) {
+                    $legacy_mapped = trim( (string) $legacy_mapped );
+                    if ( '' !== $legacy_mapped ) {
+                        return $legacy_mapped;
+                    }
+                }
+
+                return $sku;
             }
         }
 
@@ -206,14 +231,6 @@ class FTC_Utils {
                 if ( $map && ! empty( $map['external_id'] ) && is_numeric( $map['external_id'] ) ) {
                     return (int) $map['external_id'];
                 }
-            }
-        }
-
-        $sku = (string) $product->get_sku();
-        if ( '' !== $sku ) {
-            $mapped = apply_filters( 'ftc_topten_resolve_prod_id_by_sku', null, $sku, $product );
-            if ( is_numeric( $mapped ) && (int) $mapped > 0 ) {
-                return (int) $mapped;
             }
         }
 
