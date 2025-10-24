@@ -106,3 +106,60 @@
     margin-top: 1em;
     overflow-x: auto;
 }
+
+.ftc-matcher-tab {
+    margin-top: 1em;
+}
+
+.ftc-matcher-upload {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: 420px;
+    margin-bottom: 1em;
+}
+
+.ftc-matcher-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 1em;
+}
+
+.ftc-matcher-status {
+    margin-top: 0.5em;
+}
+
+.ftc-matcher-status.ftc-success {
+    color: #0a8a0a;
+}
+
+.ftc-matcher-status.ftc-error {
+    color: #d63638;
+}
+
+.ftc-matcher-summary {
+    margin-top: 1em;
+}
+
+.ftc-matcher-summary ul {
+    margin: 0;
+    padding-left: 1.2em;
+}
+
+.ftc-matcher-summary.ftc-success {
+    color: #0a8a0a;
+}
+
+.ftc-matcher-summary.ftc-error {
+    color: #d63638;
+}
+
+.ftc-matcher-table-wrapper {
+    margin-top: 1em;
+    overflow-x: auto;
+}
+
+#ftc-matcher-results td small {
+    color: #646970;
+}

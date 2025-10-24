@@ -87,6 +87,16 @@ class FTC_Webhooks {
                 'permission_callback' => array( $this, 'check_admin_permission' ),
             )
         );
+
+        register_rest_route(
+            'ftc/v1',
+            '/admin/products-matcher',
+            array(
+                'methods'             => 'POST',
+                'callback'            => array( $this, 'handle_admin_products_matcher' ),
+                'permission_callback' => array( $this, 'check_admin_permission' ),
+            )
+        );
     }
 
     /**
@@ -436,6 +446,58 @@ class FTC_Webhooks {
             $response['rows'] = array_slice( $response['rows'], 0, FTC_Products_Importer::MAX_RESPONSE_ROWS );
             $response['truncated'] = true;
         }
+
+        return rest_ensure_response( $response );
+    }
+
+    /**
+     * Handle admin products matcher upload.
+     *
+     * @param WP_REST_Request $request Request.
+     *
+     * @return WP_REST_Response|WP_Error
+     */
+    public function handle_admin_products_matcher( WP_REST_Request $request ) {
+        $nonce = $request->get_param( 'nonce' );
+        if ( ! is_string( $nonce ) || ! wp_verify_nonce( $nonce, 'ftc_products_matcher' ) ) {
+            return new WP_Error( 'ftc_products_matcher_nonce', __( 'Nonce inválido.', 'ferk-topten-connector' ), array( 'status' => 403 ) );
+        }
+
+        $files = $request->get_file_params();
+        if ( empty( $files['file'] ) || ! is_array( $files['file'] ) ) {
+            return new WP_Error( 'ftc_products_matcher_file', __( 'No se recibió ningún archivo.', 'ferk-topten-connector' ), array( 'status' => 400 ) );
+        }
+
+        $file = $files['file'];
+        if ( ! empty( $file['error'] ) ) {
+            return new WP_Error( 'ftc_products_matcher_upload', __( 'Error al subir el archivo.', 'ferk-topten-connector' ), array( 'status' => 400 ) );
+        }
+
+        $tmp_name = isset( $file['tmp_name'] ) ? (string) $file['tmp_name'] : '';
+        if ( '' === $tmp_name || ! file_exists( $tmp_name ) ) {
+            return new WP_Error( 'ftc_products_matcher_tmp', __( 'Archivo temporal no disponible.', 'ferk-topten-connector' ), array( 'status' => 400 ) );
+        }
+
+        $extension = isset( $file['name'] ) ? strtolower( pathinfo( (string) $file['name'], PATHINFO_EXTENSION ) ) : '';
+        $mime_type = isset( $file['type'] ) ? (string) $file['type'] : '';
+
+        try {
+            $result = FTC_Plugin::instance()->products_matcher()->process_file( $tmp_name, $extension, $mime_type );
+        } catch ( Exception $exception ) {
+            FTC_Logger::instance()->error(
+                'products-matcher',
+                'Products matcher failed',
+                array( 'error' => $exception->getMessage() )
+            );
+
+            return new WP_Error( 'ftc_products_matcher_failed', $exception->getMessage(), array( 'status' => 400 ) );
+        }
+
+        $response = array(
+            'summary'  => isset( $result['summary'] ) && is_array( $result['summary'] ) ? $result['summary'] : array(),
+            'items'    => isset( $result['items'] ) && is_array( $result['items'] ) ? $result['items'] : array(),
+            'filename' => isset( $file['name'] ) ? sanitize_file_name( (string) $file['name'] ) : '',
+        );
 
         return rest_ensure_response( $response );
     }

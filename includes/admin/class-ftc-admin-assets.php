@@ -102,6 +102,37 @@ class FTC_Admin_Assets {
                     'TerminosList'=> __( 'Variación (TerminosList)', 'ferk-topten-connector' ),
                     'variantOf'   => __( 'Var. de', 'ferk-topten-connector' ),
                 ),
+                'matcher' => array(
+                    'url'      => rest_url( 'ftc/v1/admin/products-matcher' ),
+                    'messages' => array(
+                        'selectFile' => __( 'Selecciona un archivo para continuar.', 'ferk-topten-connector' ),
+                        'uploading'  => __( 'Procesando archivo...', 'ferk-topten-connector' ),
+                        'success'    => __( 'Procesamiento completado.', 'ferk-topten-connector' ),
+                        'error'      => __( 'No se pudo procesar el archivo.', 'ferk-topten-connector' ),
+                        'empty'      => __( 'El archivo no contiene filas válidas.', 'ferk-topten-connector' ),
+                        'variantOf'  => __( 'Var. de', 'ferk-topten-connector' ),
+                    ),
+                    'summaryLabels' => array(
+                        'totalRows' => __( 'Filas totales', 'ferk-topten-connector' ),
+                        'processed' => __( 'Filas con datos', 'ferk-topten-connector' ),
+                        'updated'   => __( 'Actualizados', 'ferk-topten-connector' ),
+                        'unchanged' => __( 'Sin cambios', 'ferk-topten-connector' ),
+                        'skipped'   => __( 'Omitidos', 'ferk-topten-connector' ),
+                        'notFound'  => __( 'Sin coincidencia', 'ferk-topten-connector' ),
+                        'errors'    => __( 'Errores', 'ferk-topten-connector' ),
+                    ),
+                    'statusLabels' => array(
+                        'updated'   => __( 'Actualizado', 'ferk-topten-connector' ),
+                        'unchanged' => __( 'Sin cambios', 'ferk-topten-connector' ),
+                        'skipped'   => __( 'Omitido', 'ferk-topten-connector' ),
+                        'not_found' => __( 'No encontrado', 'ferk-topten-connector' ),
+                        'error'     => __( 'Error', 'ferk-topten-connector' ),
+                    ),
+                    'tableMessages' => array(
+                        'empty' => __( 'No hay resultados para mostrar.', 'ferk-topten-connector' ),
+                    ),
+                    'previousLabel' => __( 'Valor previo', 'ferk-topten-connector' ),
+                ),
                 'search' => array(
                     'url'      => rest_url( 'ftc/v1/admin/products-search' ),
                     'messages' => array(
