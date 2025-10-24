@@ -34,8 +34,9 @@ class FTC_JsonPedido {
             $stored_prod_id = is_scalar( $stored_prod_id ) ? trim( (string) $stored_prod_id ) : '';
             $prod_id        = '' !== $stored_prod_id ? $stored_prod_id : \FTC_Utils::resolve_topten_product_id( $product );
             $prod_id        = is_scalar( $prod_id ) ? trim( (string) $prod_id ) : '';
+            $prod_id_int    = '' !== $prod_id ? absint( $prod_id ) : 0;
 
-            if ( '' === $prod_id ) {
+            if ( 0 === $prod_id_int ) {
                 continue;
             }
 
@@ -48,7 +49,7 @@ class FTC_JsonPedido {
 
             $productos[] = array_filter(
                 array(
-                    'idProducto'            => $prod_id,
+                    'idProducto'            => $prod_id_int,
                     'esRegalo'              => false,
                     'cantidadEsRegalo'      => 0,
                     'terminosSeleccionados' => $chosen_ids_csv ? $chosen_ids_csv : '',
