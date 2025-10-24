@@ -262,7 +262,7 @@ class FTC_Products_Matcher {
                 continue;
             }
 
-            if ( in_array( $key, array( 'sku', 'product_sku', 'codigo', 'codigopropio', 'sku_woo' ), true ) && ! isset( $map['sku'] ) ) {
+            if ( in_array( $key, array( 'sku', 'product_sku', 'codigo', 'codigopropio', 'sku_woo', 'prod_sku' ), true ) && ! isset( $map['sku'] ) ) {
                 $map['sku'] = (int) $index;
                 continue;
             }
