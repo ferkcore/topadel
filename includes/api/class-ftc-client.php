@@ -490,17 +490,39 @@ class FTC_Client {
             throw new \Exception( 'TopTen create_payment unexpected response: ' . $raw );
         }
 
-        $success = isset( $decoded['SuccessInfo']['Success'] ) ? (bool) $decoded['SuccessInfo']['Success'] : false;
+        $decoded_normalized = array();
+        foreach ( $decoded as $key => $value ) {
+            $decoded_normalized[ strtolower( (string) $key ) ] = $value;
+        }
+
+        $success_info = array();
+        if ( isset( $decoded['SuccessInfo'] ) && is_array( $decoded['SuccessInfo'] ) ) {
+            $success_info = $decoded['SuccessInfo'];
+        } elseif ( isset( $decoded_normalized['successinfo'] ) && is_array( $decoded_normalized['successinfo'] ) ) {
+            $success_info = $decoded_normalized['successinfo'];
+        }
+
+        $success_info_normalized = array();
+        foreach ( $success_info as $key => $value ) {
+            $success_info_normalized[ strtolower( (string) $key ) ] = $value;
+        }
+
+        $success = isset( $success_info_normalized['success'] ) ? (bool) $success_info_normalized['success'] : false;
         if ( ! $success ) {
-            $msg = isset( $decoded['SuccessInfo']['Message'] ) ? (string) $decoded['SuccessInfo']['Message'] : 'Unknown error';
+            $msg = isset( $success_info_normalized['message'] ) ? (string) $success_info_normalized['message'] : 'Unknown error';
             throw new \Exception( 'TopTen create_payment failed: ' . $msg );
         }
 
+        $token        = isset( $decoded['Token'] ) ? $decoded['Token'] : ( $decoded_normalized['token'] ?? '' );
+        $url_external = isset( $decoded['UrlExternal'] ) ? $decoded['UrlExternal'] : ( $decoded_normalized['urlexternal'] ?? '' );
+        $expiration   = isset( $decoded['ExpirationUTC'] ) ? $decoded['ExpirationUTC'] : ( $decoded_normalized['expirationutc'] ?? 0 );
+        $id_adquiria  = isset( $decoded['IdAdquiria'] ) ? $decoded['IdAdquiria'] : ( $decoded_normalized['idadquiria'] ?? 0 );
+
         return array(
-            'token'          => (string) ( $decoded['Token'] ?? '' ),
-            'url_external'   => (string) ( $decoded['UrlExternal'] ?? '' ),
-            'expiration_utc' => isset( $decoded['ExpirationUTC'] ) ? (int) $decoded['ExpirationUTC'] : 0,
-            'id_adquiria'    => isset( $decoded['IdAdquiria'] ) ? (int) $decoded['IdAdquiria'] : 0,
+            'token'          => (string) $token,
+            'url_external'   => (string) $url_external,
+            'expiration_utc' => (int) $expiration,
+            'id_adquiria'    => (int) $id_adquiria,
             'raw'            => $decoded,
         );
     }
