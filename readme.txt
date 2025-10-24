@@ -31,6 +31,9 @@ Sí, debes solicitar credenciales a tu equipo de TopTen.
 Usa el botón "Testear conexión" en la pestaña de herramientas para verificar la comunicación con la API.
 
 == Changelog ==
+= Unreleased =
+* Envía el SKU del producto a TopTen en todas las integraciones que antes utilizaban el metadato `id_topten`.
+
 = 0.3.2 =
 * Ajusta la consulta de productos para usar el servicio público sin autenticación por token ni API Key.
 * Incorpora pestaña "Búsqueda" para consultar el catálogo público sin modificar productos locales.

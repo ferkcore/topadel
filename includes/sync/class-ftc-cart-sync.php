@@ -46,8 +46,10 @@ class FTC_Cart_Sync {
                 continue;
             }
 
-            $prod_id = \FTC_Utils::resolve_topten_product_id( $product );
-            if ( ! $prod_id ) {
+            $product_identifier = \FTC_Utils::resolve_topten_product_id( $product );
+            $product_identifier = is_scalar( $product_identifier ) ? trim( (string) $product_identifier ) : '';
+
+            if ( '' === $product_identifier ) {
                 $missing = $order->get_meta( '_ftc_topten_missing_products', true );
                 if ( ! is_array( $missing ) ) {
                     $missing = array();
@@ -56,7 +58,7 @@ class FTC_Cart_Sync {
                 $order->update_meta_data( '_ftc_topten_missing_products', $missing );
                 $order->save();
 
-                throw new \Exception( sprintf( 'Falta mapear Prod_Id TopTen para el producto "%s" (ID %d).', $product->get_name(), $product->get_id() ) );
+                throw new \Exception( sprintf( 'Falta mapear un identificador de TopTen (SKU) para el producto "%s" (ID %d).', $product->get_name(), $product->get_id() ) );
             }
 
             $qty = (int) $item->get_quantity();
@@ -64,7 +66,7 @@ class FTC_Cart_Sync {
 
             $items[] = array_filter(
                 array(
-                    'Prod_Id'         => (int) $prod_id,
+                    'Prod_Id'         => $product_identifier,
                     'Quantity'        => max( 1, $qty ),
                     'ChosenTerms'     => $chosen_ids ? $chosen_ids : null,
                     'ChosenTermsText' => $chosen_text ? $chosen_text : null,
@@ -74,7 +76,7 @@ class FTC_Cart_Sync {
                 }
             );
 
-            $item->update_meta_data( '_ftc_topten_prod_id', (int) $prod_id );
+            $item->update_meta_data( '_ftc_topten_prod_id', $product_identifier );
             if ( $chosen_ids ) {
                 $item->update_meta_data( '_ftc_topten_chosen_terms', $chosen_ids );
             }
