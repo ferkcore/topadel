@@ -343,11 +343,7 @@ class FTC_Gateway_Getnet extends WC_Payment_Gateway {
                 array(
                     'order_id' => $order_id,
                     'error'    => $e->getMessage(),
-                    'payload'  => array(
-                        'Carr_Id'      => $cart_id,
-                        'Coge_Id_Pago' => $coge_id,
-                        'Mepa_Id'      => $mepa_id,
-                    ),
+                    'payload'  => $payload,
                 )
             );
             wc_add_notice( __( 'No pudimos iniciar el pago. Intenta nuevamente o elige otro método.', 'ferk-topten-connector' ), 'error' );
