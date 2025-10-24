@@ -257,31 +257,8 @@ class FTC_Webhooks {
             return new WP_Error( 'ftc_products_map_nonce', __( 'Nonce inválido.', 'ferk-topten-connector' ), array( 'status' => 403 ) );
         }
 
-        $strategy = $request->get_param( 'strategy' );
-        $strategy = in_array( $strategy, array( 'case_insensitive_trim', 'exact' ), true ) ? $strategy : 'case_insensitive_trim';
-
-        $apply_changes = rest_sanitize_boolean( $request->get_param( 'apply_changes' ) );
-        $overwrite     = rest_sanitize_boolean( $request->get_param( 'overwrite' ) );
-        $max_pages     = absint( $request->get_param( 'max_pages' ) );
-
-        $keyword = $request->get_param( 'palabra_clave' );
-        if ( null !== $keyword ) {
-            $keyword = is_string( $keyword ) ? sanitize_text_field( $keyword ) : '';
-            if ( '' === $keyword ) {
-                $keyword = null;
-            }
-        }
-
-        $importer_args = array(
-            'apply_changes' => (bool) $apply_changes,
-            'overwrite'     => (bool) $overwrite,
-            'strategy'      => $strategy,
-            'palabra_clave' => $keyword,
-            'max_pages'     => $max_pages,
-        );
-
         try {
-            $result = FTC_Plugin::instance()->products_importer()->map_by_sku( $importer_args );
+            $result = FTC_Plugin::instance()->products_importer()->map_by_sku( array() );
         } catch ( Exception $exception ) {
             FTC_Logger::instance()->error(
                 'products-map',
