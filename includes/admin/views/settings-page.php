@@ -128,6 +128,49 @@ if ( ! isset( $tabs[ $current_tab ] ) ) {
                         </table>
                     </div>
                 </div>
+            <?php elseif ( 'search' === $current_tab ) : ?>
+                <?php wp_nonce_field( 'ftc_products_search', 'ftc_products_search_nonce' ); ?>
+                <div class="ftc-search-tab">
+                    <p><?php esc_html_e( 'Consulta el catálogo público de TopTen sin modificar los productos de WooCommerce.', 'ferk-topten-connector' ); ?></p>
+                    <div class="ftc-search-controls">
+                        <div class="ftc-search-field">
+                            <label for="ftc-search-term"><?php esc_html_e( 'Términos', 'ferk-topten-connector' ); ?></label>
+                            <input type="text" id="ftc-search-term" class="regular-text" placeholder="<?php esc_attr_e( 'SKU, nombre o código interno', 'ferk-topten-connector' ); ?>" />
+                            <p class="description"><?php esc_html_e( 'Separa múltiples términos con comas.', 'ferk-topten-connector' ); ?></p>
+                        </div>
+                        <div class="ftc-search-field ftc-search-field-small">
+                            <label for="ftc-search-page"><?php esc_html_e( 'Página', 'ferk-topten-connector' ); ?></label>
+                            <input type="number" id="ftc-search-page" class="small-text" min="1" value="1" />
+                        </div>
+                    </div>
+                    <div class="ftc-search-actions">
+                        <button type="button" class="button button-secondary" id="ftc-search-run"><?php esc_html_e( 'Buscar productos', 'ferk-topten-connector' ); ?></button>
+                        <span class="spinner" id="ftc-search-spinner"></span>
+                        <span id="ftc-search-status" class="description"></span>
+                    </div>
+                    <div id="ftc-search-error" class="notice notice-error" style="display:none;">
+                        <p></p>
+                    </div>
+                    <div id="ftc-search-meta" class="description"></div>
+                    <div class="ftc-search-table-wrapper">
+                        <table class="widefat striped" id="ftc-search-results">
+                            <thead>
+                                <tr>
+                                    <th><?php esc_html_e( 'Prod_Id', 'ferk-topten-connector' ); ?></th>
+                                    <th><?php esc_html_e( 'SKU', 'ferk-topten-connector' ); ?></th>
+                                    <th><?php esc_html_e( 'Nombre', 'ferk-topten-connector' ); ?></th>
+                                    <th><?php esc_html_e( 'Marca', 'ferk-topten-connector' ); ?></th>
+                                    <th><?php esc_html_e( 'Precio', 'ferk-topten-connector' ); ?></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="5"><?php esc_html_e( 'Aún no hay resultados.', 'ferk-topten-connector' ); ?></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             <?php elseif ( 'tools' === $current_tab ) : ?>
                 <p><?php esc_html_e( 'Utiliza estas herramientas para diagnosticar el conector.', 'ferk-topten-connector' ); ?></p>
                 <?php

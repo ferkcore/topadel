@@ -102,6 +102,17 @@ class FTC_Admin_Assets {
                     'TerminosList'=> __( 'Variación (TerminosList)', 'ferk-topten-connector' ),
                     'variantOf'   => __( 'Var. de', 'ferk-topten-connector' ),
                 ),
+                'search' => array(
+                    'url'      => rest_url( 'ftc/v1/admin/products-search' ),
+                    'messages' => array(
+                        'running'     => __( 'Buscando productos...', 'ferk-topten-connector' ),
+                        'error'       => __( 'No se pudo obtener la lista de productos.', 'ferk-topten-connector' ),
+                        'empty'       => __( 'No se encontraron productos.', 'ferk-topten-connector' ),
+                        'meta'        => __( 'Página %1$d de %2$d. Total: %3$d productos.', 'ferk-topten-connector' ),
+                        'metaSingle'  => __( 'Página %1$d. Total: %2$d productos.', 'ferk-topten-connector' ),
+                        'termsPrefix' => __( 'Términos', 'ferk-topten-connector' ),
+                    ),
+                ),
             )
         );
     }

@@ -67,3 +67,42 @@
 #ftc-products-results td small {
     color: #646970;
 }
+
+.ftc-search-tab {
+    margin-top: 1em;
+}
+
+.ftc-search-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-end;
+    margin-bottom: 1em;
+}
+
+.ftc-search-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 220px;
+}
+
+.ftc-search-field-small {
+    max-width: 120px;
+}
+
+.ftc-search-field-small input {
+    width: 100%;
+}
+
+.ftc-search-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 1em;
+}
+
+.ftc-search-table-wrapper {
+    margin-top: 1em;
+    overflow-x: auto;
+}
